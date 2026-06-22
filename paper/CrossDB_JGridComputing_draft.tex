@@ -1,0 +1,1018 @@
+%% ============================================================
+%% Cross-Database Generalisation of ML-Driven Replication
+%% Mode Selection — Journal of Grid Computing (Springer)
+%% Template: Springer Nature sn-jnl.cls (sn-mathphys, Numbered)
+%% Compiler : pdflatex
+%% Status   : DRAFT — results-grounded, not yet reviewed by
+%%            advisor. Remaining coordination notes marked [TODO].
+%% ============================================================
+
+\documentclass[pdflatex,sn-mathphys-num]{sn-jnl}
+
+% ---- Standard packages (per Journal of Grid Computing guidelines) ----
+\usepackage{graphicx}
+\usepackage{multirow}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{amsthm}
+\usepackage{manyfoot}
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage{textcomp}
+\usepackage{url}
+\usepackage{xurl}
+
+% ---- Theorem-style environments (unused here, kept for consistency) ----
+\theoremstyle{thmstyleone}
+\newtheorem{theorem}{Theorem}
+\newtheorem{proposition}[theorem]{Proposition}
+\theoremstyle{thmstylethree}
+\newtheorem{definition}{Definition}
+
+\raggedbottom
+
+%% ============================================================
+\begin{document}
+
+\title[Cross-Database Generalisation of Replication Mode Selection]{%
+Cross-Database Generalisation of Machine Learning-Driven
+Replication Mode Selection: A Comparative Study Across PostgreSQL,
+MySQL, and MongoDB}
+
+\author*[1]{\fnm{Imane} \sur{Jerrari}}\email{imane.jerrari-etu@etu.univh2c.ma}
+
+\author[1]{\fnm{Ismail} \sur{Assayad}}\email{ismail.assayad@univh2c.ma}
+
+\affil*[1]{\orgdiv{Laboratory of Information Systems (LIS)},
+\orgname{Faculty of Sciences Ain Chock \& ENSEM, Hassan II
+University of Casablanca},
+\orgaddress{\city{Casablanca}, \postcode{20000}, \country{Morocco}}}
+
+\abstract{%
+% [TODO: numbers below are drawn directly from the experiments run on
+%  dataset_mongodb_200.csv, dataset_mysql_200.csv, dataset_postgresql_644.csv.
+%  Revise wording once advisor confirms final framing. Word count
+%  trimmed to ~230 words to satisfy the journal's 150--250-word limit
+%  -- recheck count if further edited.]
+Our prior work introduced IAHA, a hybrid machine-learning framework
+that selects among four replication modes (PERFORMANCE, CONSISTENCY,
+AVAILABILITY, ECONOMIC) for containerised PostgreSQL, leaving
+generalisation to other engines as future work. This paper addresses
+that gap: does a per-engine RandomForest classifier trained on the
+same ten operational features generalise across PostgreSQL, MySQL,
+and MongoDB, or does performance depend on engine-specific factors
+such as sample size and class balance? We train independent
+classifiers on three datasets (PostgreSQL, $n=644$; MySQL, $n=200$;
+MongoDB, $n=200$) sharing an identical, engine-agnostic feature
+schema. Using repeated stratified 5-fold cross-validation, all three
+classifiers significantly outperform a static CPU-threshold heuristic
+(McNemar test, $p<10^{-7}$; $+18.0$ to $+21.0$ percentage points).
+Mean accuracy is $97.55\%$ for MongoDB, $95.95\%$ for MySQL, and
+$98.51\%$ for PostgreSQL. Because PostgreSQL's dataset is $3.2\times$
+larger, we test whether its advantage reflects engine identity or
+sample size: a size-matched control (PostgreSQL subsampled to
+$n=200$) shows accuracy drops by $4.24$ points and falls
+\emph{below} both other engines, confirming that dataset size ---
+not engine identity --- dominates the observed differences.
+Feature-importance rankings correlate strongly across engines
+(Spearman $\rho = 0.81$--$0.92$), showing the same operational signals
+matter in the same order regardless of engine, a necessary but not
+sufficient precondition for transfer learning. However, all three
+classifiers fail identically on AVAILABILITY (recall $=0\%$ in every
+engine), which we show is a structural feature-space overlap with
+CONSISTENCY rather than a correctable sample-size artefact (SMOTE on
+PostgreSQL improves recall only to $20\%$). We discuss
+the implications for cross-database transfer learning, identified as
+future work in our prior study.}
+
+\keywords{High Availability, Containerised Databases, Cross-Database
+Generalisation, Machine Learning, Replication Mode Selection}
+
+\maketitle
+
+%% ============================================================
+\section{Introduction}\label{sec:intro}
+%% ============================================================
+
+\subsection{Context and Motivation}\label{subsec:context}
+
+% [TODO: adjust citation key \cite{iaha2026} to the final reference
+%  once the companion paper is accepted / has a DOI]
+Adaptive replication-mode selection has recently been shown to
+outperform static heuristics on containerised PostgreSQL clusters
+\cite{iaha2026}, using a RandomForest classifier trained on operational
+metrics to choose among four modes at runtime. That study, however,
+was scoped explicitly to a single database engine, and identified
+transfer learning to MySQL and MongoDB as a direct item of future
+work (FW4 in \cite{iaha2026}).
+
+This leaves an open empirical question that matters beyond PostgreSQL:
+is the relationship between operational metrics (CPU utilisation,
+transaction throughput, replication lag, etc.) and the appropriate
+replication mode a property of PostgreSQL specifically, or a more
+general property of replicated database systems under load? If the
+latter, a single engine-agnostic feature schema could support adaptive
+high availability (HA) across heterogeneous database fleets --- a
+common scenario in practice, where organisations operate relational
+and NoSQL engines side by side.
+
+\subsection{Problem Statement}\label{subsec:problem}
+
+Does a machine-learning classifier for replication mode
+selection, trained independently on PostgreSQL, MySQL, and MongoDB
+using an identical engine-agnostic feature schema, achieve consistent
+classification performance across engines, and do the same classes
+remain difficult to predict regardless of the underlying engine?
+
+\subsection{Research Questions}\label{subsec:rqs}
+
+\begin{itemize}
+\item[\textbf{RQ1}] Does classifier performance (accuracy, macro-F1)
+  generalise consistently across PostgreSQL, MySQL, and MongoDB, or
+  does it depend on engine-specific factors such as dataset size and
+  class distribution?
+\item[\textbf{RQ2}] Is the relative importance of operational features
+  for mode selection stable across a relational engine (PostgreSQL),
+  a second relational engine (MySQL), and a document-oriented engine
+  (MongoDB)?
+\item[\textbf{RQ3}] Is the AVAILABILITY-class failure mode identified
+  as a limitation in \cite{iaha2026} (L3: extreme class imbalance)
+  specific to PostgreSQL, or does it persist structurally across
+  engines regardless of mitigation (e.g.\ oversampling)?
+\end{itemize}
+
+\subsection{Contributions}\label{subsec:contributions}
+
+\begin{itemize}
+\item An empirical cross-database comparison of replication-mode
+  classification across three production-grade database engines under
+  an identical, engine-agnostic feature schema.
+\item A sample-size control experiment that directly disentangles
+  engine identity from training-set size, showing that the apparent
+  performance advantage of the largest dataset (PostgreSQL) is
+  substantially --- though not entirely --- attributable to its size
+  rather than to properties of the engine itself.
+\item Statistically grounded evidence (BCa bootstrap confidence
+  intervals, McNemar tests against a static heuristic baseline) that
+  ML-driven mode selection significantly outperforms static thresholds
+  on all three engines, not only PostgreSQL.
+\item A diagnostic analysis on PostgreSQL (the only engine with enough
+  AVAILABILITY samples to test) showing that the AVAILABILITY-class
+  failure persists after SMOTE oversampling rather than resolving as a
+  simple data-volume artefact, combined with consistent feature-space
+  overlap between AVAILABILITY and CONSISTENCY observed descriptively
+  across all three engines.
+\item Evidence of cross-engine stability in feature importance rankings
+  (Spearman $\rho \geq 0.81$), motivating future transfer-learning work.
+\end{itemize}
+
+%% ============================================================
+\section{Related Work}\label{sec:related}
+%% ============================================================
+
+\subsection{Adaptive High Availability for Databases}\label{subsec:ha}
+
+Existing PostgreSQL HA tools follow a common pattern: a single
+synchronous or asynchronous replication policy chosen once at
+deployment time and left unchanged at runtime. Patroni \cite{patroni}
+and repmgr \cite{repmgr} provide consensus-based leader election but
+do not adapt replication behaviour to load; Stolon \cite{stolon}
+follows the same fixed-policy pattern. CloudNativePG \cite{cloudnativepg},
+the CNCF-donated Kubernetes operator used as the substrate
+in \cite{iaha2026}, improves failover latency through a native
+Kubernetes control loop but likewise applies one static replication
+configuration for the cluster's entire lifetime. None of these tools
+offers more than two operational modes, and none adapts mode selection
+to observed workload conditions --- the gap that IAHA \cite{iaha2026}
+addresses for PostgreSQL, and that this paper extends to MySQL and
+MongoDB.
+
+\subsection{Machine Learning for Database Management}\label{subsec:ml4db}
+
+ML-driven database optimisation is an active area spanning several
+problem classes: cardinality estimation and query optimisation
+(SageDB \cite{kraska2019}, Neo \cite{marcus2019}, Bao \cite{marcus2021}),
+automated configuration tuning
+(OtterTune \cite{vanaken2017}, CDBTune \cite{zhang2019}), and resource
+management (Autopilot \cite{autopilot2020}, FIRM \cite{firm2020}). A
+recurring finding in this literature, most directly relevant to our
+RQ1, is that ML-driven tuning gains do \emph{not} automatically
+transfer across systems or even across versions of the same system:
+OtterTune \cite{vanaken2017} explicitly maps unseen workloads to
+previously characterised ones because tuning effort on one DBMS does
+not reduce tuning effort on another, and LlamaTune \cite{kanellis2022}
+reports that the throughput improvement of its tuning approach over a
+baseline optimiser narrows substantially when ported from PostgreSQL
+v9.6 to v13.6 on certain workloads (e.g.\ from $20.8\%$ to $3.6\%$ on
+YCSB-B), despite both being the same engine. Multi-DBMS evaluations
+such as GPTuner \cite{lao2024} and UDO \cite{wang2021udo}, which
+benchmark across PostgreSQL and MySQL, similarly report
+engine-dependent variation in tuning effectiveness rather than uniform
+gains. This body of work motivates our explicit empirical test (RQ1,
+RQ1b) of whether classification performance generalises across engines
+or is confounded by other factors --- in our case, training-set
+size --- rather than assuming generalisation holds by default. None of
+these systems addresses replication-mode selection specifically, nor
+provides operator-facing explainability, which remains the gap
+IAHA \cite{iaha2026} and this paper target.
+
+\subsection{Explainable AI in Critical Systems}\label{subsec:xai}
+
+Explainable AI (XAI) addresses the interpretability of ML-driven
+decisions \cite{gunning2019} through post-hoc methods such as
+SHAP \cite{lundberg2017} and LIME \cite{ribeiro2016}, counterfactual
+explanations \cite{wachter2017}, and rule extraction \cite{guidotti2018}.
+XAI has been applied to high-stakes domains including
+healthcare \cite{holzinger2019}, autonomous vehicles \cite{atakishiyev2021},
+and finance \cite{bussmann2020}, but --- as noted in \cite{iaha2026}
+--- its application to database HA management remains largely
+unexplored. This paper does not introduce new XAI components beyond
+those already proposed in \cite{iaha2026}; instead, the feature
+importance analysis in Section~\ref{subsec:rq2} serves a
+complementary diagnostic role, testing whether the same decision
+signature used for explainability on PostgreSQL is structurally stable
+enough to remain meaningful on MySQL and MongoDB.
+
+\subsection{Cross-Database and Transfer Learning Approaches}\label{subsec:crossdb}
+
+Despite extensive work on ML for single-DBMS optimisation
+(Section~\ref{subsec:ml4db}), explicit cross-engine generalisation
+remains comparatively underexplored. Most multi-DBMS evaluations in
+the tuning literature (e.g.\ GPTuner \cite{lao2024},
+UDO \cite{wang2021udo}) train and evaluate \emph{separate} models per
+engine to demonstrate applicability, rather than testing whether a
+model or feature representation \emph{transfers} from one engine to
+another --- the same design choice we make in this paper (independent
+per-engine classifiers, Section~\ref{sec:methodology}), motivated by
+the same practical consideration: heterogeneous internal metrics and
+configuration spaces across engines make naive model reuse
+non-trivial. Industrial efforts to copy or retrain ML models across
+database instances exist as systems-engineering patterns, but
+typically address operational mechanics of model transfer (e.g.\
+avoiding redundant retraining) rather than evaluating whether the
+\emph{learned relationships} generalise across heterogeneous engines.
+To our knowledge, no prior work evaluates whether an
+operational-metrics-to-replication-mode mapping learned on one
+database engine is structurally transferable to a different
+engine family (relational to relational, or relational to
+document-oriented) --- the specific gap this paper addresses
+empirically through RQ1--RQ3.
+
+\subsection{Research Gaps Addressed by This Paper}\label{subsec:gaps}
+
+Building on the four gaps identified in \cite{iaha2026} (binary modes,
+static thresholds, no explainability, no temporal optimisation), we
+identify a fifth gap specific to cross-engine generalisation:
+
+\textbf{Gap 5 -- Untested Cross-Engine Generalisation:} Existing
+ML-driven database management systems are evaluated on a single engine
+(or, where multiple engines are used, evaluated independently without
+testing whether learned relationships transfer between them), leaving
+open whether reported performance gains reflect properties of the
+engine, the dataset, or the underlying operational-metric relationships
+themselves. This paper directly addresses Gap 5 through the
+size-matched control analysis in Section~\ref{subsec:rq1b}.
+
+%% ============================================================
+\section{Methodology}\label{sec:methodology}
+%% ============================================================
+
+\subsection{Datasets}\label{subsec:datasets}
+
+Three datasets were used, sharing an identical ten-feature schema
+(Table~\ref{tab:features}) and four-class label space (PERFORMANCE,
+CONSISTENCY, AVAILABILITY, ECONOMIC):
+
+\begin{itemize}
+\item \textbf{PostgreSQL}: $n = 644$ expert-validated samples
+  (the same dataset used to train IAHA's Phase 2 classifier
+  in \cite{iaha2026}).
+\item \textbf{MySQL}: $n = 200$ samples, collected under the same
+  schema for this study.
+\item \textbf{MongoDB}: $n = 200$ samples, collected under the same
+  schema for this study.
+\end{itemize}
+
+\begin{table}[h]
+\caption{Shared Feature Schema Across Engines}\label{tab:features}
+\begin{tabular}{@{}ll@{}}
+\toprule
+Feature & Description \\
+\midrule
+\texttt{replication\_lag\_mb} & Replication lag (MB) \\
+\texttt{transactions\_per\_sec} & Transaction throughput \\
+\texttt{cpu\_percent} & CPU utilisation (\%) \\
+\texttt{latency\_ms} & Query/operation latency \\
+\texttt{trans\_rolled\_back} & Rolled-back transaction rate \\
+\texttt{deadlocks} & Deadlock count \\
+\texttt{hour\_of\_day} & Time-of-day indicator \\
+\texttt{memory\_usage\_pct} & Memory utilisation (\%) \\
+\texttt{connections\_active} & Active connection count \\
+\texttt{wal\_buffers\_full} & Write-ahead/journal buffer saturation \\
+\botrule
+\end{tabular}
+\end{table}
+
+\textbf{Engine-agnostic feature design.} Features were deliberately
+chosen as generic operational metrics rather than PostgreSQL-specific
+internals, to enable this cross-engine comparison without
+re-engineering the feature set per database. We note that
+\texttt{wal\_buffers\_full} is measured as a generic write-ahead/journal
+buffer saturation proxy; for MongoDB this corresponds functionally to
+oplog buffer pressure rather than a literal PostgreSQL WAL buffer, and
+we report it under this generic name rather than renaming it
+per-engine, to preserve direct cross-engine comparability of the same
+underlying measurement axis. Similarly, \texttt{deadlocks} and
+\texttt{trans\_rolled\_back} are reported as generic
+concurrency-conflict and transaction-failure indicators rather than
+engine-native terminology.
+
+\textbf{Synthetic data and class imbalance.} As in \cite{iaha2026}
+(Limitation L2), all three datasets are synthetically generated under
+expert-informed thresholds rather than collected from production
+traces. Class distributions are imbalanced across all three engines,
+with CONSISTENCY accounting for $85.0\%$ (MongoDB), $78.5\%$ (MySQL),
+and $79.5\%$ (PostgreSQL) of samples, and AVAILABILITY represented by
+only $n=1$, $n=3$, and $n=5$ samples respectively
+(Table~\ref{tab:class-dist}).
+
+\begin{table}[h]
+\caption{Class Distribution by Engine}\label{tab:class-dist}
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+Mode & MongoDB & MySQL & PostgreSQL \\
+\midrule
+CONSISTENCY  & 170 (85.0\%) & 157 (78.5\%) & 512 (79.5\%) \\
+ECONOMIC     & 17 (8.5\%)   & 22 (11.0\%)  & 57 (8.9\%)   \\
+PERFORMANCE  & 12 (6.0\%)   & 18 (9.0\%)   & 70 (10.9\%)  \\
+AVAILABILITY & 1 (0.5\%)    & 3 (1.5\%)    & 5 (0.8\%)    \\
+\midrule
+Total ($n$)  & 200 & 200 & 644 \\
+\botrule
+\end{tabular}
+\end{table}
+
+\subsection{Classification Protocol}\label{subsec:protocol}
+
+For each engine, we train an independent RandomForest classifier
+(200 trees, balanced class weighting) using repeated stratified 5-fold
+cross-validation (10 repeats, 50 fold-level accuracy estimates per
+engine), matching the cross-validation protocol used
+in \cite{iaha2026}.
+
+\subsection{Statistical Testing}\label{subsec:stats}
+
+\textbf{BCa bootstrap confidence intervals.} Following the
+methodology of \cite{iaha2026}, we report bias-corrected and
+accelerated (BCa) bootstrap 95\% confidence intervals (10{,}000
+resamples) on mean cross-validated accuracy per engine.
+
+\textbf{McNemar test.} To test whether the RandomForest classifier
+significantly outperforms a static heuristic, we apply McNemar's test
+\emph{within each engine}, comparing paired correct/incorrect
+predictions on the same held-out folds. The static heuristic mirrors
+the threshold logic of IAHA's P1 layer: \texttt{cpu\_percent}\,$<30 \Rightarrow$
+ECONOMIC; $30\leq$\texttt{cpu\_percent}\,$<50 \Rightarrow$ PERFORMANCE;
+otherwise CONSISTENCY (the heuristic cannot express AVAILABILITY).
+We do \emph{not} apply McNemar across engines (e.g.\ MongoDB vs.\
+MySQL), since the two samples are drawn from different observation
+spaces and are not paired --- this would violate the test's
+matched-pairs assumption.
+
+\textbf{Mann--Whitney U test.} To compare the distributions of
+cross-validated accuracy between pairs of engines, we use the
+Mann--Whitney U test on the 50 fold-level accuracy estimates per
+engine. We note as a limitation that these 50 estimates per engine are
+not fully independent (they derive from repeated resampling of the
+same underlying dataset), so the resulting $p$-values likely overstate
+the true level of statistical confidence; we report them as indicative
+rather than definitive evidence of inter-engine difference.
+
+\subsection{Sample-Size Control Protocol}\label{subsec:sizecontrol-protocol}
+
+Because PostgreSQL ($n=644$) is $3.2\times$ larger than MySQL or
+MongoDB ($n=200$ each), any raw accuracy comparison between engines is
+confounded with a sample-size effect. To isolate the contribution of
+engine identity from dataset size, we additionally evaluate a
+\emph{size-matched} PostgreSQL condition: 20 independent stratified
+subsamples of $n=200$ are drawn from the full PostgreSQL dataset
+(class-proportional: 158 CONSISTENCY, 22 PERFORMANCE, 18 ECONOMIC, 2
+AVAILABILITY), each evaluated under the same repeated stratified
+cross-validation protocol as the full dataset, yielding 40 fold-level
+accuracy estimates. This size-matched PostgreSQL condition is then
+compared against (i) PostgreSQL at full size, and (ii) MySQL and
+MongoDB at their native $n=200$, using the same Mann--Whitney
+procedure described above.
+
+%% ============================================================
+\section{Results}\label{sec:results}
+%% ============================================================
+
+\subsection{RQ1: Cross-Engine Classification Performance}\label{subsec:rq1}
+
+Table~\ref{tab:main-results} summarises classification performance
+across the three engines.
+
+\begin{table}[h]
+\caption{Classification Performance by Engine (Repeated $10\times5$-Fold CV)}\label{tab:main-results}
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+Metric & MongoDB & MySQL & PostgreSQL \\
+\midrule
+Mean accuracy & 97.55\% & 95.95\% & 98.51\% \\
+BCa 95\% CI & [97.0, 98.1] & [95.2, 96.6] & [98.3, 98.7] \\
+Majority baseline & 85.00\% & 78.50\% & 79.50\% \\
+Heuristic acc. & 79.00\% & 75.00\% & 79.19\% \\
+Macro-F1 (3 cl.)\footnotemark[1] & 94.95\% & 95.41\% & 98.31\% \\
+\botrule
+\end{tabular}
+\footnotetext[1]{CONSISTENCY, ECONOMIC, PERFORMANCE only; AVAILABILITY
+excluded from aggregate macro-F1 due to insufficient sample size for
+reliable estimation (see Section~\ref{subsec:rq3}).}
+\end{table}
+
+All three classifiers substantially exceed both the majority-class
+baseline and the static heuristic. We note that for PostgreSQL the
+static heuristic ($79.19\%$) slightly underperforms the majority-class
+baseline ($79.50\%$): the heuristic actively misclassifies some
+CONSISTENCY samples into ECONOMIC or PERFORMANCE when
+\texttt{cpu\_percent} crosses its thresholds, whereas a baseline that
+always predicts CONSISTENCY incurs no such cost; this is consistent
+with the heuristic providing no information about AVAILABILITY
+and a CPU threshold that only weakly separates CONSISTENCY from
+PERFORMANCE (Section~\ref{subsec:rq3}). The RandomForest classifier
+does not exhibit this issue on any engine. McNemar's test confirms the
+RandomForest classifier significantly outperforms the static
+heuristic on every engine (Table~\ref{tab:mcnemar}). Note that the RF
+accuracy reported in Table~\ref{tab:mcnemar} is computed on a single
+stratified 5-fold split (required for McNemar's paired-prediction
+design) rather than the repeated $10\times5$-fold protocol used for
+Table~\ref{tab:main-results}; the two are not directly comparable and
+the small numerical difference (e.g.\ $98.9\%$ vs.\ $98.51\%$ for
+PostgreSQL) reflects this difference in protocol, not an
+inconsistency in the underlying model.
+
+\begin{table}[h]
+\caption{McNemar Test: RandomForest vs.\ Static Heuristic (Per Engine)}\label{tab:mcnemar}
+\begin{tabular}{@{}lrrrr@{}}
+\toprule
+Engine & RF acc. & Heur.\ acc. & $\Delta$ (pp) & McNemar $p$ \\
+\midrule
+MongoDB     & 97.0\% & 79.0\% & $+18.0$ & $2.4\times10^{-8}$ \\
+MySQL       & 96.0\% & 75.0\% & $+21.0$ & $4.1\times10^{-9}$ \\
+PostgreSQL  & 98.9\% & 79.2\% & $+19.7$ & $8.6\times10^{-26}$ \\
+\botrule
+\end{tabular}
+\end{table}
+
+The magnitude of improvement ($+18.0$ to $+21.0$ percentage points) is
+consistent with the $+25.7$ percentage-point improvement over static
+heuristics reported for PostgreSQL in \cite{iaha2026}, independently
+confirming on two additional engines that ML-driven mode selection
+provides a substantial, statistically significant advantage over fixed
+thresholds.
+
+\textbf{Engine-level differences.} A Mann--Whitney U test on
+fold-level accuracy distributions found all three pairwise comparisons
+statistically significant (MongoDB vs.\ MySQL: $p=0.0014$; MongoDB
+vs.\ PostgreSQL: $p=4.7\times10^{-4}$; MySQL vs.\ PostgreSQL:
+$p=2.2\times10^{-12}$), though as discussed in
+Section~\ref{subsec:stats} these $p$-values should be read as
+indicative rather than definitive given the non-independence of
+repeated-CV estimates. PostgreSQL --- the largest dataset
+($n=644$) --- achieves the highest accuracy and the tightest
+confidence interval, which raises an immediate confound already
+flagged in Section~\ref{sec:methodology}: is PostgreSQL's apparent
+advantage a property of the engine, or simply a property of having
+$3.2\times$ more training data? We test this directly in
+Section~\ref{subsec:rq1b}.
+
+\subsection{RQ1b: Disentangling Engine Identity from Sample Size}\label{subsec:rq1b}
+
+To test whether PostgreSQL's higher accuracy in
+Table~\ref{tab:main-results} reflects engine-specific structure or
+simply its larger sample size, we apply the size-matched control
+described in Section~\ref{subsec:sizecontrol-protocol}: PostgreSQL
+subsampled to $n=200$ (class-proportional, 20 repeats) is compared
+against PostgreSQL at full size and against MySQL/MongoDB at their
+native $n=200$.
+
+\begin{table}[h]
+\caption{Sample-Size Control: PostgreSQL Full vs.\ Size-Matched}\label{tab:size-control}
+\begin{tabular}{@{}lrr@{}}
+\toprule
+Condition & Mean acc. & BCa 95\% CI \\
+\midrule
+PostgreSQL, full ($n=644$)         & 98.51\% & [98.31, 98.67] \\
+PostgreSQL, matched ($n=200$)      & 94.27\% & [93.47, 94.95] \\
+MySQL, native ($n=200$)            & 95.95\% & [95.15, 96.60] \\
+MongoDB, native ($n=200$)          & 97.55\% & [97.00, 98.10] \\
+\botrule
+\end{tabular}
+\end{table}
+
+The result is unambiguous: once PostgreSQL is reduced to the same
+sample size as MySQL and MongoDB, its accuracy drops by $4.24$
+percentage points (from $98.51\%$ to $94.27\%$), and its confidence
+interval no longer overlaps with the full-size estimate (Mann--Whitney
+$U=53.0$, $p=8.6\times10^{-15}$). \textbf{This confirms that the
+performance advantage attributed to PostgreSQL in
+Section~\ref{subsec:rq1} is substantially driven by dataset size,
+not by engine identity.}
+
+The per-class breakdown (Table~\ref{tab:size-control-classes})
+localises this effect precisely for the PERFORMANCE class (the
+sample-size-matched subsample also contains only $n=2$ AVAILABILITY
+cases, too few to report a recall figure for that class here; see
+Section~\ref{subsec:rq3} for the AVAILABILITY analysis): PERFORMANCE recall collapses from
+$97\%$ (full PostgreSQL) to $59\%$ (size-matched PostgreSQL) once only
+22 PERFORMANCE examples are available for training instead of 70 ---
+closely matching the recall range already observed for the
+data-scarce PERFORMANCE class in MySQL and MongoDB. ECONOMIC remains
+at $100\%$ regardless of sample size, consistent with its empirical
+separability discussed in Section~\ref{subsec:economic-note}.
+
+\begin{table}[h]
+\caption{PERFORMANCE-Class Recall vs.\ Training Set Size}\label{tab:size-control-classes}
+\begin{tabular}{@{}lrr@{}}
+\toprule
+Condition & $n_{\text{PERFORMANCE}}$ & Recall \\
+\midrule
+PostgreSQL, full ($n=644$)         & 70 & 97\% \\
+PostgreSQL, size-matched ($n=200$) & 22 & 59\% \\
+MySQL ($n=200$)                    & 18 & 72\% \\
+MongoDB ($n=200$)                  & 12 & 58\% \\
+\botrule
+\end{tabular}
+\end{table}
+
+Notably, the size-matched PostgreSQL condition does not fully converge
+with MySQL and MongoDB: it remains significantly different from both
+(vs.\ MySQL: $U=559.5$, $p=2.8\times10^{-4}$; vs.\ MongoDB:
+$U=260.5$, $p=1.1\times10^{-9}$), and --- counter-intuitively --- its
+mean accuracy ($94.27\%$) is now \emph{below} both MySQL ($95.95\%$)
+and MongoDB ($97.55\%$) at the same sample size. We interpret this
+residual difference cautiously. Having confirmed (Limitation L1) that
+all three datasets are produced by the same generator and the same
+random seed, a difference in generation procedure is not a plausible
+explanation here. The more likely candidates are sampling variance not
+fully captured by our 20-repeat subsampling protocol, or a genuine
+finite-sample property of how PostgreSQL's particular scenario mix
+happens to shape the four-class decision boundary at $n=200$
+specifically. We do not have grounds to attribute the residual to a
+property of the PostgreSQL \emph{engine} itself, and flag this as an
+open question for future work (Section~\ref{sec:conclusion}, FW4
+below) rather than a settled finding.
+
+\textbf{Implication for RQ1.} The evidence supports a revised answer
+to RQ1: classifier performance does \emph{not} generalise uniformly
+across engines at matched sample sizes, but the dominant driver of the
+cross-engine differences observed in Table~\ref{tab:main-results} is
+training-set size --- particularly its effect on data-scarce classes
+such as PERFORMANCE --- rather than an intrinsic advantage of any
+single database engine. This has a direct practical implication: when
+deploying ML-driven mode selection on a new engine, the data
+collection budget per class (especially for non-dominant modes) likely
+matters more than the choice of engine itself.
+
+\subsection{RQ2: Cross-Engine Feature Importance Stability}\label{subsec:rq2}
+
+\begin{table}[h]
+\caption{Top-4 Feature Importances by Engine (RandomForest)}\label{tab:feature-importance}
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+Feature & MongoDB & MySQL & PostgreSQL \\
+\midrule
+\texttt{transactions\_per\_sec} & 0.227 & 0.279 & 0.238 \\
+\texttt{cpu\_percent}           & 0.204 & 0.194 & 0.227 \\
+\texttt{connections\_active}    & 0.150 & 0.149 & 0.171 \\
+\texttt{replication\_lag\_mb}   & 0.122 & 0.135 & 0.158 \\
+\botrule
+\end{tabular}
+\end{table}
+
+The same four features dominate the decision process across all three
+engines, in the same relative order. Spearman rank correlation between
+full feature-importance rankings (all ten features) is $\rho = 0.806$
+(MongoDB vs.\ MySQL), $\rho = 0.915$ (MongoDB vs.\ PostgreSQL), and
+$\rho = 0.891$ (MySQL vs.\ PostgreSQL). We emphasise what this
+correlation does and
+does not show: it indicates that the \emph{relative ranking} of which
+features matter is stable across engines, which is a necessary
+precondition for transfer learning to be worth attempting (there
+would be little reason to transfer a model if the engines relied on
+different signals entirely). It is not, by itself, evidence that a
+classifier's learned decision boundary transfers --- that would
+require directly training on one engine and testing on another, which
+we identify as future work (FW1, Section~\ref{sec:conclusion}) rather
+than claim here. We therefore describe the decision signature as
+\emph{structurally consistent} across engines, and treat genuine
+transferability as an open empirical question.
+
+\subsection{A Note on ECONOMIC Separability}\label{subsec:economic-note}
+
+Throughout this paper, the ECONOMIC class is perfectly separable
+(recall and precision $=100\%$ on all three engines and at all sample
+sizes tested), and our static heuristic baseline reproduces this
+separation using a single threshold, $\texttt{cpu\_percent} < 30$
+(Section~\ref{subsec:stats}). It is important to be precise about
+\emph{why} this threshold works, since the underlying data-generation
+process (consulted directly rather than inferred) reveals that
+\texttt{cpu\_percent} is not itself the generating rule for ECONOMIC.
+ECONOMIC samples are generated under a low-load
+``off-peak'' scenario defined jointly by night-time hours and low
+transaction throughput; CPU utilisation in that scenario happens to be
+drawn from a low range ($10$--$30\%$) as a \emph{consequence} of the
+same scenario, not as its defining criterion. The
+$\texttt{cpu\_percent}<30$ threshold is therefore an effective
+\emph{empirical proxy} for this scenario, not a description of the
+causal mechanism that produced the label. We flag this distinction
+explicitly because it affects how the perfect separability of
+ECONOMIC should be read: it demonstrates that a single operational
+metric can capture a multivariate, time-of-day-dependent operating
+regime well enough to be perfectly diagnostic on this dataset, which
+is a more interesting empirical finding than a merely definitional
+threshold would be, but it should not be over-interpreted as evidence
+that CPU utilisation alone \emph{causes} or \emph{defines} the
+ECONOMIC mode in a deployed system.
+
+\subsection{RQ3: The AVAILABILITY Failure Mode}\label{subsec:rq3}
+
+Across all three engines, AVAILABILITY recall is $0\%$
+(Table~\ref{tab:confusion-availability}): every AVAILABILITY sample is
+misclassified, and in every case the misclassification is to
+CONSISTENCY --- never to ECONOMIC or PERFORMANCE.
+
+\begin{table}[h]
+\caption{AVAILABILITY Misclassification Pattern by Engine}\label{tab:confusion-availability}
+\begin{tabular}{@{}lrrrr@{}}
+\toprule
+Engine & $n_{\text{avail}}$ & Predicted CONS. & Recall & Feature overlap\footnotemark[2] \\
+\midrule
+MongoDB     & 1 & 1/1 & 0\% & n/a\footnotemark[3] \\
+MySQL       & 3 & 3/3 & 0\% & 33.2\% \\
+PostgreSQL  & 5 & 5/5 & 0\% & 38.9\% \\
+\botrule
+\end{tabular}
+\footnotetext[2]{Mean \% of CONSISTENCY samples falling within the
+observed AVAILABILITY feature range, averaged across the ten features.}
+\footnotetext[3]{Not statistically interpretable with $n=1$.}
+\end{table}
+
+To test whether this failure is a correctable sample-size artefact or
+a structural overlap, we applied SMOTE oversampling to the PostgreSQL
+training folds (the only engine with enough AVAILABILITY samples,
+$n=5$, to make oversampling meaningful). SMOTE improved AVAILABILITY
+recall from $0\%$ to only $20\%$ (F1 $=0.29$), with precision dropping
+to $50\%$. This causal test was not repeated on MySQL or MongoDB, as
+$n=1$ and $n=3$ AVAILABILITY samples are too few to support
+oversampling. Combined with the descriptive feature-overlap evidence
+that holds across all three engines ($33$--$39\%$ for MySQL and
+PostgreSQL; not statistically interpretable for MongoDB at $n=1$), we
+conclude that the failure is more consistent with a structural
+overlap than with a purely volumetric shortage --- the current
+ten-feature schema does not contain a feature that cleanly separates
+AVAILABILITY from CONSISTENCY on the one engine where this could be
+directly tested, and the same feature-space overlap is visible
+wherever it can be measured. This mirrors and extends Limitation L3 of
+\cite{iaha2026}
+(``CONSISTENCY $=89.4\%$ limits generalisation for ECONOMIC and
+AVAILABILITY''), showing the same limitation persists after extension
+to two additional engines and is not specific to the original
+PostgreSQL dataset.
+
+%% ============================================================
+\section{Discussion}\label{sec:discussion}
+%% ============================================================
+
+% [TODO: expand once full draft reviewed by advisor.]
+\textbf{RQ1.} Classification accuracy is high across all three engines
+but is not uniform, and our size-matched control
+(Section~\ref{subsec:rq1b}) confirms \emph{empirically} --- rather
+than merely suggesting --- that this non-uniformity is driven
+primarily by training-set size rather than engine identity: subsampling
+PostgreSQL to MySQL/MongoDB's native size erases its accuracy
+advantage entirely, with the loss concentrated in the data-scarce
+PERFORMANCE class. This is an important distinction for practitioners:
+the data collection budget per class (especially for non-dominant
+modes such as PERFORMANCE and AVAILABILITY) likely matters more than
+which engine is being instrumented. At the same time, the size-matched
+PostgreSQL condition does not fully converge with MySQL or MongoDB
+accuracy (Section~\ref{subsec:rq1b}), leaving open the
+possibility of a smaller, engine- or dataset-specific residual effect
+that this study is not positioned to fully explain.
+
+\textbf{RQ2.} The strong cross-engine correlation in feature importance
+($\rho \geq 0.81$) suggests that \texttt{transactions\_per\_sec},
+\texttt{cpu\_percent}, \texttt{connections\_active}, and
+\texttt{replication\_lag\_mb} constitute a largely engine-agnostic
+``signature'' of replication-mode state. This is a necessary (though
+not sufficient) condition for transfer learning across engines: a
+classifier pre-trained on PostgreSQL's larger dataset could plausibly
+provide a useful initialisation for MySQL or MongoDB classifiers,
+particularly for the data-scarce PERFORMANCE and AVAILABILITY classes.
+% [TODO: this is the natural bridge to a future Paper 3 on transfer
+%  learning — make this connection explicit once paper 3 scope is set]
+
+\textbf{RQ3.} The fact that AVAILABILITY is \emph{never} confused with
+ECONOMIC or PERFORMANCE --- only ever with CONSISTENCY --- across all
+three engines is itself informative: it suggests the current feature
+schema captures a single dominant axis of variation (roughly,
+load/CPU intensity) that separates ECONOMIC and PERFORMANCE well, but
+does not capture whatever distinguishes an ``available-but-degraded''
+state from a normal CONSISTENCY state. Candidate additional features
+for future work include active replica/read-replica counts, health-check
+failure rates, or failover-readiness indicators --- none of which are
+present in the current ten-feature schema.
+
+\subsection{Limitations}\label{subsec:limitations}
+
+\textbf{L1 -- Synthetic data, single shared generator.} As in
+\cite{iaha2026}, all three datasets are synthetically generated rather
+than collected from live production traces. We confirm, by direct
+inspection of the generation script, that all three datasets
+(PostgreSQL, MySQL, MongoDB) are produced by a single shared Python
+generator (a common \texttt{generate\_samples(n, system)} function),
+called three times with the same random seed and the same
+scenario-based logic, varying only the requested sample size $n$ and
+an engine-specific parameter $\texttt{system}$. Each sample is drawn
+from one of five latent operating scenarios (normal, peak, off-peak,
+crisis, degraded), each with its own probability and its own
+parameter ranges for the ten operational features; the four-class
+\texttt{mode} label is then assigned by a deterministic rule cascade
+over the sampled feature values (load thresholds, error rates,
+deadlock counts, and time-of-day), not by a separate validation step
+applied to each generated row. ``Expert-validated'' in this context
+and in \cite{iaha2026} refers to the scenario probabilities,
+parameter ranges, and labelling-rule cascade themselves having been
+specified by domain expertise, not to an independent post-hoc review
+of each individual sample. Two of the ten features
+(\texttt{wal\_buffers\_full}, \texttt{trans\_rolled\_back}) are drawn
+from engine-specific ranges within the shared generator (e.g.\
+\texttt{wal\_buffers\_full} $\sim \mathcal{U}(0,50)$ for PostgreSQL
+vs.\ $\mathcal{U}(0,20)$ for MongoDB), consistent with the $2$--$2.5\times$
+scale divergence we measured empirically between engines on exactly
+these two features (Section~\ref{subsec:datasets}); all remaining
+features share identical generating ranges across engines. This
+confirms that cross-engine differences reported in this paper
+(Sections~\ref{subsec:rq1}--\ref{subsec:rq3}) reflect a single,
+consistent generative process rather than independently calibrated,
+potentially incomparable, per-engine implementations. This also
+narrows the candidate explanations for the unexplained residual gap
+identified in Section~\ref{subsec:rq1b} (size-matched PostgreSQL
+underperforming MySQL and MongoDB at equal $n$): a generator
+discrepancy is no longer a plausible cause, since the same code and
+seed produce all three datasets, which strengthens --- rather than
+undermines --- the case that the residual reflects genuine
+finite-sample structure in how the four-class decision boundary is
+shaped at PostgreSQL's particular scenario mix, and we revise FW4
+(Section~\ref{sec:conclusion}) accordingly.
+
+\textbf{L2 -- Extreme AVAILABILITY imbalance.} With $n=1$, $3$, and
+$5$ AVAILABILITY samples respectively, no engine permits a
+statistically reliable estimate of AVAILABILITY recall; we report it
+descriptively rather than within aggregate metrics.
+
+\textbf{L3 -- Non-independence of repeated-CV estimates.} Mann--Whitney
+comparisons between engines use 50 fold-level accuracy estimates per
+engine drawn from repeated resampling of the same underlying dataset;
+these are not fully independent observations, so reported $p$-values
+likely overstate true statistical confidence.
+
+\textbf{L4 -- No live multi-engine cluster validation.} Unlike
+the live Kubernetes validation in \cite{iaha2026} (Phase 1, CloudNativePG),
+this study validates classification performance only; end-to-end
+decision latency and live failover behaviour on MySQL/MongoDB
+clusters remain to be measured.
+% [TODO: if/when a live test is run, this becomes the natural
+%  Phase-1-equivalent for paper 2]
+
+\subsection{Threats to Validity}\label{subsec:threats}
+
+\textbf{Internal.} The static heuristic baseline reuses the threshold
+logic of IAHA's P1 layer rather than an independently tuned baseline
+per engine, which may understate what a carefully engine-tuned
+heuristic could achieve.
+
+\textbf{Construct.} Feature semantics (e.g.\ \texttt{wal\_buffers\_full}
+as an oplog-buffer proxy for MongoDB) are functional analogues rather
+than native engine metrics; this trades engine-specific fidelity for
+cross-engine comparability, an explicit design choice discussed in
+Section~\ref{sec:methodology}.
+
+\textbf{External.} Results are obtained on synthetic datasets of
+differing size (200/200/644); generalisation to production traces and
+to balanced multi-engine datasets of equal size remains to be
+validated (cf.\ L1, L2).
+
+%% ============================================================
+\section{Conclusion and Future Work}\label{sec:conclusion}
+%% ============================================================
+
+% [TODO: finalise once advisor confirms final framing.]
+This study directly addresses FW4 from \cite{iaha2026} by evaluating
+whether ML-driven replication mode selection generalises from
+PostgreSQL to MySQL and MongoDB. We find that classification accuracy
+is consistently high and significantly outperforms static heuristics
+on all three engines (McNemar $p<10^{-7}$), and that the underlying
+feature-importance signature is highly stable across engines (Spearman
+$\rho \geq 0.81$) --- evidence that supports, but does not yet
+demonstrate, cross-engine transfer learning. Critically, a size-matched
+control experiment shows that the cross-engine accuracy differences
+observed at native dataset sizes are substantially driven by
+training-set size rather than by intrinsic properties of the database
+engine: a result with direct implications for how practitioners should
+budget data collection when extending ML-driven HA to new engines. At
+the same time, the AVAILABILITY class fails identically (zero recall,
+always misclassified as CONSISTENCY) on all three engines, and the
+evidence available --- a direct causal test on PostgreSQL plus
+consistent descriptive feature overlap elsewhere --- points to a
+genuine gap in the current feature schema rather than an artefact
+specific to any one dataset.
+
+\textbf{FW1.} Explicit transfer-learning evaluation (pre-train on
+PostgreSQL, fine-tune on MySQL/MongoDB), directly testing whether the
+feature-importance stability found here translates into sample-efficiency
+gains for the data-scarce engines.
+
+\textbf{FW2.} Extend the feature schema with availability-specific
+signals (replica health-check failure rate, active read-replica count)
+to test whether the structural AVAILABILITY/CONSISTENCY overlap
+identified in Section~\ref{subsec:rq3} can be resolved.
+
+\textbf{FW3.} Live multi-engine cluster validation (MySQL Group
+Replication, MongoDB replica sets) mirroring the Phase 1 CloudNativePG
+validation in \cite{iaha2026}, to measure real end-to-end decision
+latency and failover behaviour rather than offline classification
+accuracy alone.
+
+\textbf{FW4.} Investigate the residual, unexplained performance gap
+between size-matched PostgreSQL and MySQL/MongoDB identified in
+Section~\ref{subsec:rq1b}. Having confirmed (Limitation L1) that all
+three datasets share a single generator and seed, a generator
+discrepancy is no longer a candidate explanation; remaining
+hypotheses are sampling variance not fully captured by our 20-repeat
+protocol, or genuine finite-sample structure in how the four-class
+decision boundary behaves under PostgreSQL's particular scenario mix
+at $n=200$ specifically.
+
+%% ============================================================
+\backmatter
+
+\bmhead{Acknowledgments}
+% [TODO: add acknowledgments if applicable, or state "Not applicable".]
+Not applicable.
+
+\section*{Declarations}
+
+% [TODO: confirm exact wording with advisor before submission.]
+\begin{itemize}
+\item \textbf{Funding:} The authors did not receive support from any
+  organization for the submitted work.
+\item \textbf{Competing Interests:} The authors have no relevant
+  financial or non-financial interests to disclose.
+\item \textbf{Ethics approval:} Not applicable.
+\item \textbf{Consent to participate:} Not applicable.
+\item \textbf{Consent for publication:} Not applicable.
+\item \textbf{Availability of data and materials:} The datasets used
+  in this study are available from the corresponding author upon
+  reasonable request.
+  % [TODO: consider depositing datasets in a public repository
+  %  (e.g. Zenodo) per Journal of Grid Computing's research data
+  %  policy, and replace this statement with a DOI-bearing citation.]
+\item \textbf{Code availability:} The analysis code used to produce
+  the results in this paper is available from the corresponding
+  author upon reasonable request.
+\item \textbf{Authors' contributions:} All authors contributed to the
+  study conception and design. Material preparation, data collection,
+  and analysis were performed by I.~Jerrari. The first draft of the
+  manuscript was written by I.~Jerrari and all authors commented on
+  previous versions of the manuscript. All authors read and approved
+  the final manuscript.
+  % [TODO: confirm/adjust contribution statement with co-author.]
+\item \textbf{AI-assisted copy editing:} Large Language Model (LLM)
+  tools were used for AI-assisted copy editing (readability and style
+  improvements to author-generated text) and for exploratory data
+  analysis under direct author supervision; all analytical decisions,
+  interpretations, and conclusions are the authors' own. No generative
+  AI tool is listed as an author.
+  % [TODO: confirm this statement reflects the actual workflow and
+  %  satisfies Journal of Grid Computing's LLM-use disclosure
+  %  requirements before submission.]
+\end{itemize}
+
+% ---- Bibliography (numbered, per Journal of Grid Computing style) ----
+\begin{thebibliography}{20}
+
+\bibitem{iaha2026}
+Jerrari, I., Assayad, I.: IAHA: An intelligent adaptive high
+availability framework for containerised PostgreSQL databases using
+hybrid machine learning. Journal of Intelligent \& Fuzzy Systems,
+under review (2026)
+
+\bibitem{patroni}
+Patroni Project: Patroni: A template for PostgreSQL HA.
+\url{https://github.com/patroni/patroni}. Accessed Apr 2025
+
+\bibitem{repmgr}
+repmgr Project: repmgr: PostgreSQL replication manager.
+\url{https://repmgr.org/}. Accessed Apr 2025
+
+\bibitem{stolon}
+Sorint.lab: Stolon: PostgreSQL cloud-native HA.
+\url{https://github.com/sorintlab/stolon}. Accessed Apr 2025
+
+\bibitem{cloudnativepg}
+EnterpriseDB/CNCF: CloudNativePG: Cloud-native PostgreSQL operator.
+\url{https://cloudnative-pg.io/}. Accessed Apr 2025
+
+\bibitem{kraska2019}
+Kraska, T., et al.: SageDB: A learned database system. In: Proc. CIDR
+(2019)
+
+\bibitem{marcus2019}
+Marcus, R., Negi, P., Mao, H., Zhang, C., Alizadeh, A., Kraska, T.,
+Papaemmanouil, O., Tatbul, N.: Neo: A learned query optimizer. Proc.
+VLDB Endow. \textbf{12}(11), 1705--1718 (2019)
+
+\bibitem{marcus2021}
+Marcus, R., et al.: Bao: Making learned query optimization practical.
+In: Proc. ACM SIGMOD, pp.\ 1275--1288 (2021)
+
+\bibitem{vanaken2017}
+Van Aken, D., Pavlo, A., Gordon, G.J., Zhang, B.: Automatic database
+management system tuning through large-scale machine learning. In:
+Proc. ACM SIGMOD, pp.\ 1009--1024 (2017)
+
+\bibitem{zhang2019}
+Zhang, J., et al.: An end-to-end automatic cloud database tuning
+system using deep reinforcement learning. In: Proc. ACM SIGMOD, pp.\
+415--432 (2019)
+
+\bibitem{autopilot2020}
+Rzadca, K., Findeisen, P., Swiderski, J., Zych, P., Broniek, P.,
+Kusmierek, J., Nowak, P., Strack, B., Witusowski, P., Hand, S.,
+Wilkes, J.: Autopilot: Workload autoscaling at Google. In: Proc.\ 15th
+Eur.\ Conf.\ Comput.\ Syst.\ (EuroSys '20), Heraklion, Greece, Article
+no.\ 16 (2020). \url{https://doi.org/10.1145/3342195.3387524}
+
+\bibitem{firm2020}
+Qiu, H., et al.: FIRM: An intelligent fine-grained resource
+management framework for SLO-oriented microservices. In: Proc.\ OSDI,
+pp.\ 805--825 (2020)
+
+\bibitem{gunning2019}
+Gunning, D., et al.: XAI---Explainable artificial intelligence. Sci.
+Robot. \textbf{4}(37), eaay7120 (2019)
+
+\bibitem{lundberg2017}
+Lundberg, S.M., Lee, S.-I.: A unified approach to interpreting model
+predictions. In: Proc.\ NeurIPS, pp.\ 4765--4774 (2017)
+
+\bibitem{ribeiro2016}
+Ribeiro, M.T., Singh, S., Guestrin, C.: ``Why should I trust you?'':
+Explaining the predictions of any classifier. In: Proc.\ ACM KDD, pp.\
+1135--1144 (2016)
+
+\bibitem{wachter2017}
+Wachter, S., Mittelstadt, B., Russell, C.: Counterfactual explanations
+without opening the black box: Automated decisions and the GDPR.
+Harvard J. Law Technol. \textbf{31}(2), 841--887 (2017)
+
+\bibitem{guidotti2018}
+Guidotti, R., et al.: A survey of methods for explaining black box
+models. ACM Comput. Surv. \textbf{51}(5), 93:1--93:42 (2018)
+
+\bibitem{holzinger2019}
+Holzinger, A., Langs, G., Denk, H., Zatloukal, K., M\"uller, H.:
+Causability and explainability of artificial intelligence in
+medicine. WIREs Data Min. Knowl. Discov. \textbf{9}(4), e1312 (2019).
+\url{https://doi.org/10.1002/widm.1312}
+
+\bibitem{atakishiyev2021}
+Atakishiyev, S., Salameh, M., Yao, H., Goebel, R.: Explainable
+artificial intelligence for autonomous driving. arXiv:2104.08952
+(2021)
+
+\bibitem{bussmann2020}
+Bussmann, N., et al.: Explainable machine learning in credit risk
+management. Comput. Econ. \textbf{57}, 203--216 (2021)
+
+\bibitem{kanellis2022}
+Kanellis, K., Ding, C., Kroth, B., M\"uller, A., Curino, C.,
+Venkataraman, S.: LlamaTune: Sample-efficient DBMS configuration
+tuning. Proc. VLDB Endow. \textbf{15}(11), 2953--2965 (2022)
+
+\bibitem{lao2024}
+Lao, J., Wang, Y., Li, Y., Wang, J., Zhang, Y., Cheng, Z., Chen, W.,
+Tang, M., Wang, J.: GPTuner: A manual-reading database tuning system
+via GPT-guided Bayesian optimization. Proc. VLDB Endow.
+\textbf{17}(8), 1939--1952 (2024)
+
+\bibitem{wang2021udo}
+Wang, J., Trummer, I., Basu, D.: UDO: Universal database optimization
+using reinforcement learning. Proc. VLDB Endow. \textbf{14}(13),
+3402--3414 (2021)
+
+\end{thebibliography}
+
+\end{document}
