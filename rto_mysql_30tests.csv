@@ -1,0 +1,16 @@
+test,former_primary,new_primary,promotion_time_s,rto_s,timestamp
+1,iaha-mysql-cluster-2,iaha-mysql-cluster-0,83.83,23.4,2026-04-12T23:20:18.860922
+2,iaha-mysql-cluster-0,iaha-mysql-cluster-2,85.24,20.33,2026-04-12T23:24:20.015936
+3,iaha-mysql-cluster-2,iaha-mysql-cluster-0,84.45,20.59,2026-04-12T23:28:20.582833
+4,iaha-mysql-cluster-0,iaha-mysql-cluster-2,83.97,23.46,2026-04-12T23:32:23.676083
+5,iaha-mysql-cluster-2,iaha-mysql-cluster-0,84.25,20.5,2026-04-12T23:36:24.052325
+6,iaha-mysql-cluster-0,iaha-mysql-cluster-2,84.74,20.56,2026-04-12T23:40:25.096740
+7,iaha-mysql-cluster-2,iaha-mysql-cluster-0,84.16,20.62,2026-04-12T23:44:25.474255
+8,iaha-mysql-cluster-0,iaha-mysql-cluster-2,84.8,20.02,2026-04-12T23:48:25.910582
+9,iaha-mysql-cluster-2,iaha-mysql-cluster-0,84.87,20.3,2026-04-12T23:52:26.617993
+10,iaha-mysql-cluster-0,iaha-mysql-cluster-2,84.79,20.03,2026-04-12T23:56:27.037534
+11,iaha-mysql-cluster-2,iaha-mysql-cluster-0,84.31,20.23,2026-04-13T00:00:27.148018
+12,iaha-mysql-cluster-0,iaha-mysql-cluster-2,84.56,20.1,2026-04-13T00:04:27.371020
+13,iaha-mysql-cluster-2,iaha-mysql-cluster-0,84.8,20.0,2026-04-13T00:08:27.800657
+14,iaha-mysql-cluster-0,iaha-mysql-cluster-2,85.04,20.14,2026-04-13T00:12:28.586148
+15,iaha-mysql-cluster-2,iaha-mysql-cluster-0,84.91,-1,2026-04-13T00:19:11.838012

@@ -1,0 +1,6 @@
+test,former_primary,new_primary,promotion_time_s,rto_s,timestamp
+2,iaha-mysql-cluster-0,iaha-mysql-cluster-2,84.64,19.88,2026-04-12T22:41:47.936900
+4,iaha-mysql-cluster-0,iaha-mysql-cluster-2,84.4,19.79,2026-04-12T22:49:27.153839
+6,iaha-mysql-cluster-0,iaha-mysql-cluster-2,84.1,20.03,2026-04-12T22:57:06.655910
+8,iaha-mysql-cluster-0,iaha-mysql-cluster-2,84.25,19.82,2026-04-12T23:04:45.713915
+10,iaha-mysql-cluster-0,iaha-mysql-cluster-2,83.99,19.83,2026-04-12T23:12:24.948422
