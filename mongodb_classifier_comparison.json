@@ -1,0 +1,22 @@
+{
+  "RandomForest": {
+    "mean_accuracy": 0.9754999999999999,
+    "std_accuracy": 0.021122818689458926,
+    "macro_f1_pooled_3class": 0.9315432144308987
+  },
+  "XGBoost": {
+    "mean_accuracy": 0.971,
+    "std_accuracy": 0.02279008019077688,
+    "macro_f1_pooled_3class": 0.9098515744921355
+  },
+  "LogisticRegression": {
+    "mean_accuracy": 0.8420000000000001,
+    "std_accuracy": 0.06112048990080403,
+    "macro_f1_pooled_3class": 0.7746392098249659
+  },
+  "SVM (RBF)": {
+    "mean_accuracy": 0.8365,
+    "std_accuracy": 0.06704590264307349,
+    "macro_f1_pooled_3class": 0.7519921179798746
+  }
+}
