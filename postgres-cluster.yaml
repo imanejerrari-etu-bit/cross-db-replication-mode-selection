@@ -1,0 +1,24 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: iaha-pg
+  namespace: default
+spec:
+  instances: 3
+  imageName: ghcr.io/cloudnative-pg/postgresql:16.1
+  storage:
+    size: 2Gi
+  postgresql:
+    parameters:
+      max_connections: "100"
+      shared_buffers: "128MB"
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "250m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+  startDelay: 300
+  stopDelay: 300
+  smartShutdownTimeout: 180
