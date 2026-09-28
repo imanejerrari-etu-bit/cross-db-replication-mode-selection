@@ -37,9 +37,9 @@ LABEL_COLUMN = "mode"  # adjust if your CSV uses a different column name
 CLASSES = ["CONSISTENCY", "ECONOMIC", "PERFORMANCE", "AVAILABILITY"]
 
 DATA_PATHS = {
-    "postgresql": "dataset_postgresql_644.csv",
-    "mysql": "dataset_mysql_200.csv",
-    "mongodb": "dataset_mongodb_200.csv",
+    "postgresql": "data/dataset_postgresql_644.csv",
+    "mysql": "data/dataset_mysql_200.csv",
+    "mongodb": "data/dataset_mongodb_200.csv",
 }
 
 

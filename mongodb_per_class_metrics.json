@@ -1,0 +1,29 @@
+{
+  "engine": "mongodb",
+  "classes": {
+    "CONSISTENCY": {
+      "precision": 0.9719839908519153,
+      "recall": 1.0,
+      "f1": 0.9857929834734706,
+      "support": 1700
+    },
+    "ECONOMIC": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "support": 170
+    },
+    "PERFORMANCE": {
+      "precision": 1.0,
+      "recall": 0.675,
+      "f1": 0.8059701492537313,
+      "support": 120
+    },
+    "AVAILABILITY": {
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "support": 10
+    }
+  }
+}

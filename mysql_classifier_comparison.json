@@ -1,0 +1,26 @@
+{
+  "engine": "mysql",
+  "xgboost_version": "3.4.1",
+  "results": {
+    "RandomForest": {
+      "mean_accuracy": 0.9590000000000001,
+      "std_accuracy": 0.02278157149978902,
+      "macro_f1_pooled_3class": 0.9382927014505963
+    },
+    "XGBoost": {
+      "mean_accuracy": 0.9534999999999999,
+      "std_accuracy": 0.030004166377354986,
+      "macro_f1_pooled_3class": 0.9291967583484381
+    },
+    "LogisticRegression": {
+      "mean_accuracy": 0.8435000000000002,
+      "std_accuracy": 0.05472887720390398,
+      "macro_f1_pooled_3class": 0.8408411425262171
+    },
+    "SVM (RBF)": {
+      "mean_accuracy": 0.7694999999999999,
+      "std_accuracy": 0.0652476053200422,
+      "macro_f1_pooled_3class": 0.7591930245958682
+    }
+  }
+}

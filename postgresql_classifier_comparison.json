@@ -1,0 +1,26 @@
+{
+  "engine": "postgresql",
+  "xgboost_version": "3.4.1",
+  "results": {
+    "RandomForest": {
+      "mean_accuracy": 0.9861809593023254,
+      "std_accuracy": 0.0069901547208750985,
+      "macro_f1_pooled_3class": 0.9892654897911134
+    },
+    "XGBoost": {
+      "mean_accuracy": 0.9854069767441861,
+      "std_accuracy": 0.008153302540515012,
+      "macro_f1_pooled_3class": 0.9896738566731439
+    },
+    "LogisticRegression": {
+      "mean_accuracy": 0.8605571705426357,
+      "std_accuracy": 0.02286757306054364,
+      "macro_f1_pooled_3class": 0.8547081952593762
+    },
+    "SVM (RBF)": {
+      "mean_accuracy": 0.7715697674418603,
+      "std_accuracy": 0.030155141415245196,
+      "macro_f1_pooled_3class": 0.7785880294041364
+    }
+  }
+}
