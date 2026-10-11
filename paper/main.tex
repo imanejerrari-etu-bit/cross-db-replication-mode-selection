@@ -13,7 +13,7 @@
 
 \documentclass[iicol,pdflatex,sn-mathphys-num]{sn-jnl}
 
-% ---- Standard packages (per Journal of Grid Computing guidelines) ----
+% ---- Standard packages ----
 \usepackage{graphicx}
 \usepackage{multirow}
 \usepackage{amsmath,amssymb,amsfonts}
@@ -44,7 +44,7 @@ Synthetic Study Across PostgreSQL, MySQL, and MongoDB}
 
 \author*[1]{\fnm{Imane} \sur{Jerrari}}\email{imane.jerrari-etu@etu.univh2c.ma}
 
-\author[1]{\fnm{Ismail} \sur{Assayad}}\email{ismail.assayad@univh2c.ma}
+\author[1]{\fnm{Ismail} \sur{Assayad}}\email{i.assayad@ensem.ac.ma}
 
 \affil*[1]{\orgdiv{Laboratory of Information Systems (LIS)},
 \orgname{Faculty of Sciences Ain Chock \& ENSEM, Hassan II
@@ -59,31 +59,29 @@ generalisation to other engines as future work. Here, under a
 controlled design where all three offline datasets share a single
 synthetic generator, we test whether a per-engine RandomForest
 classifier behaves consistently across PostgreSQL, MySQL, and
-MongoDB, and we validate live Kubernetes failover behaviour on all
+MongoDB, and we validate live Kubernetes failover on all
 three engines. Independent classifiers (PostgreSQL, $n=644$; MySQL,
 $n=200$; MongoDB, $n=200$) significantly outperform a static
 CPU-threshold heuristic by $+18.0$ to $+21.0$ percentage points
 (McNemar $p<10^{-6}$), with mean accuracy $95.90\%$--$98.62\%$; a
-direct comparison shows RandomForest matches
-the strongest alternative (XGBoost) and both substantially outperform
-linear/kernel classifiers. A size-matched control shows part of
+direct comparison shows RandomForest matches the strongest
+alternative (XGBoost) and both outperform linear/kernel classifiers. A size-matched control shows part of
 PostgreSQL's advantage comes from dataset size (a $1.93$-point drop
-at $n=200$), but size-matched PostgreSQL lands between, not below,
-MySQL and MongoDB, so size alone does not fully explain cross-engine
+at $n=200$), but size-matched PostgreSQL nominally lands between, not
+below, MySQL and MongoDB (exploratory; borderline or non-significant after
+correction), so size alone does not fully explain cross-engine
 differences.
 Feature-importance rankings correlate strongly across engines
 (Spearman $\rho=0.81$--$0.92$). All three classifiers misclassify
 AVAILABILITY as CONSISTENCY; given small per-engine counts
 ($n=1,3,5$), we treat this descriptively; SMOTE improves recall only
-to $20\%$. Live failover tests show total recovery time differs
-significantly between engines (Mann--Whitney $p<0.05$), with
-engine-specific differences and measurement artefacts reported
-openly rather than resolved and confounded by an orchestration
-asymmetry across engines. Because the
+to $20\%$. An exploratory live failover comparison finds total recovery
+time differs between deployments (PostgreSQL--MySQL and MySQL--MongoDB
+significant after Bonferroni correction; PostgreSQL--MongoDB not),
+confounded by an orchestration asymmetry. Because the
 offline datasets share one generative process, those results
 establish consistency under controlled conditions, not generalisation
-to heterogeneous production systems; we discuss this distinction and
-its implications for future work.}
+to heterogeneous production systems.}
 
 \keywords{High Availability, Containerised Databases, Cross-Database
 Generalisation, Machine Learning, Replication Mode Selection}
@@ -155,6 +153,10 @@ underlying engine?
   macro-F1) consistent across PostgreSQL, MySQL, and MongoDB, or does
   it depend on engine-specific factors such as dataset size and class
   distribution?
+\item[] \rqlabel{RQ1b} Is the cross-engine difference in accuracy and
+  PERFORMANCE-class recall explained by dataset size rather than by
+  engine identity? (We test this exploratorily by subsampling
+  PostgreSQL to the size of the MySQL and MongoDB datasets, $n=200$.)
 \item[] \rqlabel{RQ1c} Is RandomForest, inherited from \cite{iaha2026},
   actually competitive with alternative classifiers on this specific
   four-class mode-selection task, or would another model perform
@@ -194,9 +196,9 @@ underlying engine?
   engine identity from training-set size, showing that the apparent
   performance advantage of the largest dataset (PostgreSQL) is
   \emph{partly} --- but not fully --- attributable to its size:
-  size-matched PostgreSQL lands between MySQL and MongoDB rather than
-  below both, so a residual, unattributed difference between engines
-  remains and is flagged as an open question rather than resolved.
+  size-matched PostgreSQL nominally lands between MySQL and MongoDB rather
+  than below both (an exploratory ordering), so a residual, unattributed
+  difference between engines may remain and is flagged as an open question rather than resolved.
 \item Statistically grounded evidence (BCa bootstrap confidence
   intervals, McNemar tests against a static heuristic baseline) that
   ML-driven mode selection significantly outperforms static thresholds
@@ -227,6 +229,14 @@ underlying engine?
 %% ============================================================
 \section{Related Work}\label{sec:related}
 %% ============================================================
+
+This section positions the study against four strands of prior work:
+adaptive high availability for databases (Section~\ref{subsec:ha}),
+machine learning for database management (Section~\ref{subsec:ml4db}),
+explainable AI in critical systems (Section~\ref{subsec:xai}), and
+cross-database and transfer-learning approaches
+(Section~\ref{subsec:crossdb}). It closes by stating the research gaps
+this paper addresses (Section~\ref{subsec:gaps}).
 
 \subsection{Adaptive High Availability for Databases}\label{subsec:ha}
 
@@ -363,9 +373,9 @@ themselves. This paper addresses Gap 5 through the size-matched
 control analysis in Section~\ref{subsec:rq1b}, which shows dataset
 size is part, but not all, of the explanation for the cross-engine
 differences observed: it does not fully close the gap, since
-size-matched PostgreSQL lands between MySQL and MongoDB rather than
-below both, leaving a residual difference between engines at matched
-sample size open (Section~\ref{subsec:rq1b}, FW4), and --- as
+size-matched PostgreSQL nominally lands between MySQL and MongoDB rather
+than below both (an exploratory ordering), leaving a possible residual
+difference between engines at matched sample size open (Section~\ref{subsec:rq1b}, FW4), and --- as
 discussed in Section~\ref{subsec:scope} --- closing it fully will
 additionally require moving beyond a single shared synthetic generator
 to independently instrumented engines.
@@ -373,6 +383,17 @@ to independently instrumented engines.
 %% ============================================================
 \section{Methodology}\label{sec:methodology}
 %% ============================================================
+
+This section describes the controlled design used to answer RQ1--RQ4:
+the three synthetic datasets (Section~\ref{subsec:datasets}), the scope
+of the study (Section~\ref{subsec:scope}), the classification protocol
+and the alternative-classifier comparison
+(Sections~\ref{subsec:protocol} and~\ref{subsec:classifier-comparison-protocol}),
+the statistical tests, including the comparison families and the
+multiple-comparison correction (Section~\ref{subsec:stats}), the
+sample-size control (Section~\ref{subsec:sizecontrol-protocol}), and the
+live multi-engine failover validation
+(Section~\ref{subsec:live-validation}).
 
 \subsection{Datasets}\label{subsec:datasets}
 
@@ -602,6 +623,36 @@ same underlying dataset), so the resulting $p$-values likely overstate
 the true level of statistical confidence; we report them as indicative
 rather than definitive evidence of inter-engine difference.
 
+\textbf{Multiple comparisons.} The Mann--Whitney comparisons are
+grouped into three families of three tests each: (F1) the pairwise
+engine-accuracy comparisons (Section~\ref{subsec:rq1}); (F2) the
+comparisons of size-matched PostgreSQL against full-size PostgreSQL,
+MySQL, and MongoDB (Section~\ref{subsec:rq1b}); and (F3) the pairwise
+total-RTO comparisons (Section~\ref{subsec:rq4}). Within each family we
+report the unadjusted $p$-value, the Bonferroni-adjusted value
+($p_{\text{Bonf}}=\min(1,3p)$), and the Holm-adjusted value
+($p_{\text{Holm}}$), which controls the same family-wise error rate with
+greater power. A difference is called significant if
+$p_{\text{Bonf}}<0.05$; a value only marginally below that threshold
+(here $p_{\text{Bonf}}=0.04998$) is called borderline and not treated
+as established, because it does not survive a different but equally
+defensible choice of family (see the sensitivity check below). Holm
+values are reported for completeness.
+Adjustment does not remove the non-independence of repeated-CV
+estimates (above) or the orchestration confound of the live comparison,
+so all three families are exploratory, and unadjusted $p$-values are
+reported as indicative evidence, distinct from corrected significance.
+The three McNemar tests (one per engine) are adjusted in the same way:
+the largest unadjusted value ($2.46\times10^{-7}$) becomes
+$7.4\times10^{-7}$ after Bonferroni correction, so all three remain
+below $10^{-6}$. Adjusted values are computed from unrounded
+$p$-values and may differ in the last digit from values recomputed
+from the rounded figures printed in the text. As a sensitivity check,
+pooling all nine Mann--Whitney tests into a single family (Bonferroni
+factor 9) leaves exactly the same comparisons significant, except that
+the borderline F2 comparison with MySQL ($p_{\text{Bonf}}=0.15$) is
+then clearly non-significant.
+
 \subsection{Sample-Size Control Protocol}\label{subsec:sizecontrol-protocol}
 
 Because PostgreSQL ($n=644$) is $3.2\times$ larger than MySQL or
@@ -610,8 +661,9 @@ confounded with a sample-size effect. To isolate the contribution of
 engine identity from dataset size, we additionally evaluate a
 \emph{size-matched} PostgreSQL condition: 20 independent stratified
 subsamples of $n=200$ are drawn from the full PostgreSQL dataset
-(class-proportional: 158 CONSISTENCY, 22 PERFORMANCE, 18 ECONOMIC, 2
-AVAILABILITY), each evaluated under the same repeated stratified
+(approximately class-proportional: 158--159 CONSISTENCY, 21--22
+PERFORMANCE, 17--18 ECONOMIC, 2 AVAILABILITY; 22 PERFORMANCE cases in
+19 of the 20 subsamples and 21 in the other), each evaluated under the same repeated stratified
 cross-validation protocol as the full dataset (10 repeats $\times$ 5
 folds), yielding $20 \times 50 = 1000$ fold-level accuracy estimates
 in total. This size-matched PostgreSQL condition is then
@@ -708,6 +760,19 @@ cause of this artefact and note it as a limitation
 %% ============================================================
 \section{Results}\label{sec:results}
 %% ============================================================
+
+Results are reported in the order of the research questions:
+cross-engine classification performance (RQ1,
+Section~\ref{subsec:rq1}), the sample-size control (RQ1b,
+Section~\ref{subsec:rq1b}), the alternative-classifier comparison
+(RQ1c, Section~\ref{subsec:rq1c}), feature-importance stability (RQ2,
+Section~\ref{subsec:rq2}), a note on ECONOMIC separability
+(Section~\ref{subsec:economic-note}), the AVAILABILITY failure mode
+(RQ3, Section~\ref{subsec:rq3}), and live recovery-time validation
+(RQ4, Section~\ref{subsec:rq4}). Pairwise comparisons are interpreted
+within the families and the correction procedure defined in
+Section~\ref{subsec:stats}; the size-control, SMOTE, and live-failover
+analyses are exploratory.
 
 \subsection{RQ1: Cross-Engine Classification Performance}\label{subsec:rq1}
 
@@ -824,18 +889,20 @@ AVAILABILITY & 0.0\%   & 0.0\%   & 0.0\%   & 0.0\%   & 0.0\%   & 0.0\%   \\
 
 \textbf{Engine-level differences.} A Mann--Whitney U test on
 fold-level accuracy distributions found all three pairwise comparisons
-statistically significant (MongoDB vs.\ MySQL: $U=1739.0$,
-$p=3.6\times10^{-4}$; MongoDB vs.\ PostgreSQL: $U=798.0$, $p=0.0016$;
-MySQL vs.\ PostgreSQL: $U=240.0$, $p=1.9\times10^{-12}$), though as
-discussed in
-Section~\ref{subsec:stats} these $p$-values should be read as
-indicative rather than definitive given the non-independence of
-repeated-CV estimates. We do not apply a formal multiple-comparison
-correction across the pairwise tests reported in this section and in
-Sections~\ref{subsec:rq1b} and~\ref{subsec:rq4}; however, even a
-conservative Bonferroni correction across all pairwise comparisons
-reported in this paper would not change any conclusion, since the
-largest $p$-value among them is $0.047$ (Section~\ref{subsec:rq4}).
+(family F1) significant after Bonferroni correction (MongoDB vs.\
+MySQL: $U=1739.0$, $p=3.6\times10^{-4}$,
+$p_{\text{Bonf}}=1.1\times10^{-3}$; MongoDB vs.\ PostgreSQL:
+$U=798.0$, $p=0.0016$, $p_{\text{Bonf}}=0.0048$; MySQL vs.\
+PostgreSQL: $U=240.0$, $p=1.9\times10^{-12}$,
+$p_{\text{Bonf}}=5.7\times10^{-12}$; Holm-adjusted values are
+$7.2\times10^{-4}$, $0.0016$, and $5.7\times10^{-12}$), though as
+discussed in Section~\ref{subsec:stats} these $p$-values should be read
+as indicative rather than definitive given the non-independence of
+repeated-CV estimates. The comparison families and the adjustment
+procedure are defined in Section~\ref{subsec:stats}; the corresponding
+adjustments for the size-control (F2) and total-RTO (F3) comparisons are
+reported in Sections~\ref{subsec:rq1b} and~\ref{subsec:rq4}, where some
+conclusions do not survive correction.
 PostgreSQL --- the largest dataset
 ($n=644$) --- achieves the highest accuracy and the tightest
 confidence interval, which raises an immediate confound already
@@ -875,8 +942,9 @@ Table~\ref{tab:main-results} might suggest: once PostgreSQL is reduced
 to the same sample size as MySQL and MongoDB, its accuracy drops by
 $1.93$ percentage points (from $98.62\%$ to $96.69\%$), and its
 confidence interval no longer overlaps with the full-size estimate
-(Mann--Whitney $U=12556.0$, $p=6.7\times10^{-10}$). \textbf{This
-confirms that part of the performance advantage attributed to
+(Mann--Whitney $U=12556.0$, $p=6.7\times10^{-10}$,
+$p_{\text{Bonf}}=2.0\times10^{-9}$ within family F2). \textbf{This
+indicates that part of the performance advantage attributed to
 PostgreSQL in Section~\ref{subsec:rq1} is driven by dataset size, not
 by engine identity --- though, as the comparison below shows, size is
 not the whole story.}
@@ -886,40 +954,51 @@ localises part of this effect in the PERFORMANCE class (the
 sample-size-matched subsample also contains only $n=2$ AVAILABILITY
 cases, too few to report a recall figure for that class here; see
 Section~\ref{subsec:rq3} for the AVAILABILITY analysis): PERFORMANCE
-recall drops from $97\%$ (full PostgreSQL) to $79.5\%$ (size-matched
-PostgreSQL) once only 22 PERFORMANCE examples are available for
-training instead of 70. This is a real effect of reduced training
-data, but --- unlike what an earlier draft of this analysis reported
---- it does \emph{not} bring size-matched PostgreSQL down into the
-same recall range as MySQL ($72\%$) or MongoDB ($58\%$); it remains
-clearly above both. Sample size affects the PERFORMANCE class, but not
+recall drops from $95.3\%$ (full PostgreSQL) to $79.5\%$ (size-matched
+PostgreSQL), a $15.8$-point drop, once the dataset contains only 22
+PERFORMANCE cases (about $17.6$ per training fold) instead of 70 (about
+$56.0$ per training fold). This is a real effect of reduced training
+data, but it does \emph{not} bring size-matched PostgreSQL down into the
+same recall range as MySQL ($71.1\%$) or MongoDB ($67.5\%$); it remains
+above both ($8.4$ and $12.0$ points, respectively). Sample size affects the PERFORMANCE class, but not
 enough on its own to equalise it with the other two engines at the
 same nominal training size. ECONOMIC remains at $100\%$ regardless of
 sample size, consistent with its empirical separability discussed in
 Section~\ref{subsec:economic-note}.
 
 \begin{table}[h]
-\caption{PERFORMANCE-Class Recall vs.\ Training Set Size}\label{tab:size-control-classes}
+\caption{PERFORMANCE-Class Recall vs.\ Training Set Size. Cases: total
+PERFORMANCE examples in the dataset; Train/fold: mean per training
+fold; Recall: pooled over all repeated-CV test folds (size-matched:
+all 20 subsamples; 22 cases in 19, 21 in one).}\label{tab:size-control-classes}
 \footnotesize
-\begin{tabular}{@{}p{3.2cm}rr@{}}
+\begin{tabular}{@{}p{3.2cm}rrr@{}}
 \toprule
-Condition & $n_{\text{PERF.}}$ & Recall \\
+Condition & Cases & Train/fold & Recall \\
 \midrule
-PostgreSQL, full ($n=644$)         & 70 & 97\% \\
-PostgreSQL, size-matched ($n=200$) & 22 & 79.5\% \\
-MySQL ($n=200$)                    & 18 & 72\% \\
-MongoDB ($n=200$)                  & 12 & 58\% \\
+PostgreSQL, full ($n=644$)         & 70 & 56.0 & 95.3\% \\
+PostgreSQL, matched ($n=200$)      & 22 & 17.6 & 79.5\% \\
+MySQL ($n=200$)                    & 18 & 14.4 & 71.1\% \\
+MongoDB ($n=200$)                  & 12 & 9.6  & 67.5\% \\
 \botrule
 \end{tabular}
 \end{table}
 
-Notably, and revising what an earlier draft of this analysis
-concluded, the size-matched PostgreSQL condition does not fall below
-both other engines: it is significantly \emph{higher} than MySQL
-native ($95.90\%$; Mann--Whitney $U=29797.0$, $p=0.017$) and
-significantly \emph{lower} than MongoDB native ($97.55\%$;
-$U=20607.0$, $p=0.028$), landing between the two rather than below
-both. We interpret this pattern cautiously rather than as a settled
+Notably, the size-matched PostgreSQL condition does not fall below
+both other engines: it is nominally \emph{higher} than MySQL
+native ($95.90\%$; Mann--Whitney $U=29797.0$, $p=0.01666$,
+$p_{\text{Bonf}}=0.04998$, $p_{\text{Holm}}=0.033$) and nominally
+\emph{lower} than MongoDB native ($97.55\%$; $U=20607.0$, $p=0.0282$,
+$p_{\text{Bonf}}=0.085$, $p_{\text{Holm}}=0.033$), landing between the
+two in point estimate rather than below both. Within family F2
+(Section~\ref{subsec:stats}), the MySQL comparison is borderline
+($p_{\text{Bonf}}=0.04998$, just under the $0.05$ threshold, and not robust to pooling all tests
+into one family; Section~\ref{subsec:stats}) and the
+MongoDB comparison does not pass it, so we
+treat both as exploratory, unadjusted evidence rather than as
+established differences. Holm-adjusted values are reported for
+completeness; significance is judged by the more conservative
+Bonferroni criterion defined in Section~\ref{subsec:stats}. We interpret this pattern cautiously rather than as a settled
 finding. Having confirmed (Limitation L1) that all three datasets are
 produced by the same generator and the same random seed, a difference
 in generation procedure is not a plausible explanation. The more
@@ -939,20 +1018,23 @@ finding.
 PostgreSQL at full size, PostgreSQL size-matched to $n=200$, and
 MySQL/MongoDB at their native $n=200$. Error bars show BCa 95\%
 confidence intervals (Table~\ref{tab:size-control}); the dashed line
-marks full-size PostgreSQL accuracy for reference.}\label{fig:size-control}
+marks full-size PostgreSQL accuracy for reference. The $y$-axis is
+truncated (lowest tick shown: $86\%$), so differences look larger than
+they are; the largest gap shown is $2.72$ points.}\label{fig:size-control}
 \end{figure*}
 
 \begin{figure*}[t]
 \centering
 \includegraphics[width=0.85\linewidth]{figures/fig4_performance_recall.pdf}
-\caption{PERFORMANCE-class recall as a function of the number of
-PERFORMANCE training examples available, across the four conditions
-in Table~\ref{tab:size-control-classes}.}\label{fig:performance-recall}
+\caption{PERFORMANCE-class recall (pooled over all repeated-CV test
+folds) for the four conditions in
+Table~\ref{tab:size-control-classes}; $n$ in the axis labels is the
+total number of PERFORMANCE cases in each dataset, and the mean number
+per training fold is given in that table.}\label{fig:performance-recall}
 \end{figure*}
 
-\textbf{Implication for RQ1.} The evidence supports a revised answer
-to RQ1, more measured than an earlier draft of this analysis
-concluded: classifier performance is \emph{not} fully consistent
+\textbf{Implication for RQ1.} The evidence supports a measured answer
+to RQ1: classifier performance is \emph{not} fully consistent
 across engines at matched sample sizes, and training-set size is
 \emph{part} of the explanation for the cross-engine differences
 observed in Table~\ref{tab:main-results} --- narrowing PostgreSQL's
@@ -962,18 +1044,17 @@ $1.93$ points once reduced to $n=200$), and clearly affecting
 PERFORMANCE-class recall --- but size
 alone does not fully equalise the three engines, since size-matched
 PostgreSQL still lands between, rather than below, MySQL and MongoDB
-native performance. Within the controlled synthetic design tested
+native performance in point estimate (an exploratory ordering that is
+borderline or non-significant after multiple-comparison correction).
+Within the controlled synthetic design tested
 here (Section~\ref{subsec:scope}), we conclude that both training-set
 size and some remaining engine- or dataset-specific factor contribute
 to the cross-engine differences, with size accounting for a
 substantial but not exhaustive share. The practical implication is
-correspondingly more modest: the data collection budget per class
+correspondingly modest: the data collection budget per class
 likely matters for non-dominant modes such as PERFORMANCE, but it
 should not be assumed to fully substitute for engine-specific
-validation --- a conclusion we would not have reached without
-re-running this analysis against the real underlying data, which we
-flag as a caution about verifying computational results before
-relying on them in a paper's central claims.
+validation.
 
 \subsection{RQ1c: Is RandomForest the Right Classifier?}\label{subsec:rq1c}
 
@@ -1013,9 +1094,9 @@ SVM (RBF)            & 75.20\% & 75.92\% & 77.86\% \\
 \end{table}
 
 Two patterns are clear and, unlike several other results in this
-paper, do not require heavy qualification. First, RandomForest is the
-best or statistically indistinguishable from the best classifier on
-every engine: it has the highest accuracy on all three engines, and
+paper, do not require heavy qualification. First, RandomForest is
+the best classifier, or within $0.5$ percentage points of the best,
+on every engine: it has the highest accuracy on all three engines, and
 the highest macro-F1 on two of three (MongoDB, MySQL), with XGBoost
 marginally ahead on PostgreSQL macro-F1 by $0.04$ percentage
 points --- well within fold-to-fold noise. RandomForest was not,
@@ -1142,8 +1223,9 @@ observed AVAILABILITY feature range, averaged across the ten features.}
 \footnotetext[3]{Not statistically interpretable with $n=1$.}
 \end{table}
 
-To test whether this failure is a correctable sample-size artefact or
-a structural overlap, we applied SMOTE oversampling to the PostgreSQL
+As a diagnostic, to probe whether this failure is a correctable
+sample-size artefact or reflects a structural overlap, we ran an
+oversampling experiment: SMOTE applied to the PostgreSQL
 training folds (the only engine with enough AVAILABILITY samples,
 $n=5$, to make oversampling meaningful). Because stratified 5-fold CV
 with $n=5$ AVAILABILITY samples places exactly one such sample in each
@@ -1155,52 +1237,81 @@ samples, the maximum value SMOTE permits) rather than its default of
 5, which would not run with fewer than six minority samples per
 training fold. SMOTE improved AVAILABILITY
 recall from $0\%$ to only $20\%$ (F1 $=0.29$), with precision dropping
-to $50\%$. This causal test was not repeated on MySQL or MongoDB, as
+to $50\%$. This diagnostic oversampling experiment was not repeated on MySQL or MongoDB, as
 $n=1$ and $n=3$ AVAILABILITY samples are too few to support
 oversampling ($n=3$ for MySQL would permit at most
 \texttt{k\_neighbors=1} within a training fold containing only
 2--3 such samples, which we judged too degenerate to be informative).
-Combined with the descriptive feature-overlap evidence
-that holds across all three engines ($33$--$39\%$ for MySQL and
-PostgreSQL; not statistically interpretable for MongoDB at $n=1$), we
-conclude that the failure is more consistent with a structural
-overlap than with a purely volumetric shortage --- the current
-ten-feature schema does not contain a feature that cleanly separates
-AVAILABILITY from CONSISTENCY on the one engine where this could be
-directly tested, and the same feature-space overlap is visible
-wherever it can be measured. This is consistent with, and extends,
-Limitation L3 of \cite{iaha2026}
-(``CONSISTENCY $=89.4\%$ limits generalisation for ECONOMIC and
-AVAILABILITY''), suggesting the same limitation is not specific to the
-original PostgreSQL dataset; given the sample sizes involved, we frame
-this as suggestive evidence pointing toward a structural explanation
-rather than a definitive resolution of the question.
+Together with the descriptive feature-overlap figures
+($33$--$39\%$ for MySQL and PostgreSQL; not statistically interpretable
+for MongoDB at $n=1$), the limited gain is compatible with a structural
+overlap between AVAILABILITY and CONSISTENCY in the current ten-feature
+schema. It is equally compatible with other explanations, most notably
+the very small number of independent minority examples (five on
+PostgreSQL, from which SMOTE can only interpolate), and this experiment
+cannot separate the two. We therefore treat the structural-overlap
+reading strictly as a hypothesis for future work (FW2), not as a
+finding. The pattern is consistent with Limitation L3 of
+\cite{iaha2026} (``CONSISTENCY $=89.4\%$ limits generalisation for
+ECONOMIC and AVAILABILITY''), but given the sample sizes involved it
+does not show that this limitation is shared across engines or
+independent of sample size.
 
 \subsection{RQ4: Live Recovery-Time Validation Across Engines}\label{subsec:rq4}
 
 Table~\ref{tab:rto-results} reports total RTO (Section~\ref{subsec:live-validation})
-for all three engines under the live failover protocol.
+for all three engines under the live failover protocol, using the
+valid tests only (30 of 30 for PostgreSQL, 14 of 15 for MySQL, 20 of 30
+for MongoDB; see Section~\ref{subsec:live-validation} for the
+exclusions). Table~\ref{tab:rto-tests} gives the corresponding pairwise
+tests.
 
-\begin{table}[h]
-\caption{Total RTO by Engine (Live Kubernetes Failover Tests)}\label{tab:rto-results}
-\begin{tabular}{@{}lrrrr@{}}
+\begin{table*}[t]
+\caption{Total RTO by Engine (Live Kubernetes Failover Tests). Total RTO
+$=$ \texttt{promotion\_time\_s} $+$ stabilisation interval
+(Section~\ref{subsec:live-validation}), in seconds. Valid/attempted:
+MySQL excludes failed test 15 (180\,s timeout); MongoDB excludes 10
+tests with implausibly short stabilisation times (0.65--0.73\,s). The
+CI is the BCa 95\% interval of the mean.}\label{tab:rto-results}
+\begin{tabular}{@{}lrrrrrr@{}}
 \toprule
-Engine & $n$ & Mean total RTO & BCa 95\% CI & CV \\
+Engine & Valid/attempted & Mean & Median & Min--Max & BCa 95\% CI & CV \\
 \midrule
-PostgreSQL & 30 & 37.26s & [33.20, 42.20] & 34.2\% \\
-MySQL GR   & 14 & 105.29s & [104.96, 105.95] & 0.9\% \\
-MongoDB RS & 20 & 43.82s & [41.06, 46.58] & 14.8\% \\
+PostgreSQL & 30/30 & 37.26 & 29.43 & 25.77--57.65 & [33.20, 42.20] & 34.2\% \\
+MySQL GR   & 14/15 & 105.29 & 104.93 & 104.54--107.43 & [104.96, 105.95] & 0.9\% \\
+MongoDB RS & 20/30 & 43.82 & 46.78 & 35.67--52.33 & [41.06, 46.58] & 14.8\% \\
 \botrule
 \end{tabular}
-\end{table}
+\end{table*}
 
-All three pairwise Mann--Whitney comparisons are statistically
-significant (PostgreSQL vs.\ MySQL: $U=0.0$, $p=1.3\times10^{-7}$,
-rank-biserial $r=1.00$; PostgreSQL vs.\ MongoDB: $U=199.0$,
-$p=0.047$, $r=0.34$; MySQL vs.\ MongoDB: $U=280.0$,
-$p=1.1\times10^{-6}$, $|r|=1.00$), though given the orchestration
-asymmetry stated in Section~\ref{subsec:live-validation}, we read
-these as differences between \emph{deployments} rather than
+\begin{table*}[t]
+\caption{Pairwise Total-RTO Comparisons (Family F3; Mann--Whitney U,
+two-sided). $r=1-2U/(n_1n_2)$ is the rank-biserial correlation for the
+first-listed engine versus the second (negative: the first engine tended
+to have the higher RTO). $p_{\text{Bonf}}=\min(1,3p)$. Holm values are given for
+completeness; significance is judged by the Bonferroni criterion
+(Section~\ref{subsec:stats}).}\label{tab:rto-tests}
+\begin{tabular}{@{}lrrrrr@{}}
+\toprule
+Comparison & $U$ & $p$ & $p_{\text{Bonf}}$ & $p_{\text{Holm}}$ & $r$ \\
+\midrule
+PostgreSQL vs.\ MySQL   & 0.0   & $1.3\times10^{-7}$ & $3.9\times10^{-7}$ & $3.9\times10^{-7}$ & $+1.00$ \\
+PostgreSQL vs.\ MongoDB & 199.0 & $0.047$ & $0.14$ & $0.047$ & $+0.34$ \\
+MySQL vs.\ MongoDB      & 280.0 & $1.1\times10^{-6}$ & $3.2\times10^{-6}$ & $2.1\times10^{-6}$ & $-1.00$ \\
+\botrule
+\end{tabular}
+\end{table*}
+
+Within family F3 (Table~\ref{tab:rto-tests}), two of the three pairwise Mann--Whitney comparisons
+remain significant after Bonferroni correction (PostgreSQL vs.\ MySQL:
+$U=0.0$, $p=1.3\times10^{-7}$, $p_{\text{Bonf}}=3.9\times10^{-7}$,
+rank-biserial $r=1.00$; MySQL vs.\ MongoDB: $U=280.0$,
+$p=1.1\times10^{-6}$, $p_{\text{Bonf}}=3.2\times10^{-6}$, $|r|=1.00$).
+The third, PostgreSQL vs.\ MongoDB ($U=199.0$, $p=0.047$, $r=0.34$),
+does not: $p_{\text{Bonf}}=0.14$ (Holm: $0.047$), so we regard it as
+suggestive but not established. Given the orchestration asymmetry
+stated in Section~\ref{subsec:live-validation}, and because this family
+is exploratory, we read these as differences between \emph{deployments} rather than
 differences intrinsic to the database engines themselves. The
 rank-biserial correlation ($r=1-2U/(n_1 n_2)$) is large for two of
 the three comparisons: PostgreSQL vs.\ MySQL and MySQL vs.\ MongoDB
@@ -1208,9 +1319,10 @@ both reach $|r|=1.00$, meaning every test in the faster engine's
 sample recorded a lower total RTO than every test in the slower
 engine's sample (complete stochastic dominance, not merely a
 significant average difference). PostgreSQL vs.\ MongoDB is a more
-moderate effect ($r=0.34$), consistent with their total RTO
-distributions (Table~\ref{tab:rto-results}) overlapping more than either does
-with MySQL's.
+moderate effect ($r=0.34$), consistent with their total RTO ranges
+(Table~\ref{tab:rto-results}: $25.77$--$57.65$\,s and
+$35.67$--$52.33$\,s) overlapping, whereas MySQL's range
+($104.54$--$107.43$\,s) overlaps neither.
 
 \textbf{MySQL Group Replication is slowest but by far the most
 predictable.} At $105.29$s mean total RTO, MySQL GR is
@@ -1228,7 +1340,9 @@ even though slower in absolute terms.
 fully explain.} Examining \texttt{promotion\_time\_s} in test order
 reveals two clusters rather than random scatter: the first ten tests
 average $34.02$s, while tests 11--30 average $13.69$s (with one late
-outlier at test 23, $42.46$s). This pattern is consistent with the
+outlier at test 23, $42.46$s). The gap between PostgreSQL's mean
+($37.26$\,s) and median ($29.43$\,s) in Table~\ref{tab:rto-results}
+is consistent with a right-skewed total-RTO distribution. The ordering pattern is consistent with the
 CloudNativePG control loop, DNS propagation, or some other aspect of
 cluster state becoming faster to converge after the first several
 pod replacements in a run, but our test harness did not instrument
@@ -1267,13 +1381,13 @@ paper leaves open, that finding stands on its own. The more nuanced
 question is \emph{why} accuracy varies across engines at all.
 Classification accuracy is high across all three engines
 but is not uniform, and our size-matched control
-(Section~\ref{subsec:rq1b}) confirms \emph{empirically} --- rather
-than merely suggesting --- that \emph{part} of this non-uniformity is
+(Section~\ref{subsec:rq1b}) indicates \emph{empirically} that
+\emph{part} of this non-uniformity is
 driven by training-set size, within the controlled synthetic design
 tested here: subsampling PostgreSQL to MySQL/MongoDB's native size
 narrows its accuracy advantage over MySQL from $2.72$ to $0.79$
 points, drops PostgreSQL's own accuracy by $1.93$ points, and
-noticeably reduces PERFORMANCE-class recall (from $97\%$ to
+noticeably reduces PERFORMANCE-class recall (from $95.3\%$ to
 $79.5\%$). This is a useful, if more modest than initially expected,
 signal for practitioners --- the data collection budget per class
 (especially for non-dominant modes such as PERFORMANCE and
@@ -1281,10 +1395,12 @@ AVAILABILITY) plausibly matters, though evidently not enough on its
 own to equalise engines at matched sample size --- and confirming
 this on independently instrumented production engines remains to be
 done (Section~\ref{subsec:scope}). Size does \emph{not} fully explain
-the cross-engine differences: size-matched PostgreSQL lands between,
-not below, MySQL and MongoDB accuracy (Section~\ref{subsec:rq1b}),
-leaving a residual, dataset- or engine-specific effect that this
-study is not positioned to fully explain.
+the cross-engine differences: size-matched PostgreSQL nominally lands
+between, not below, MySQL and MongoDB accuracy (an exploratory
+ordering, borderline or non-significant after correction;
+Section~\ref{subsec:rq1b}), leaving a possible residual, dataset- or
+engine-specific effect that this study is not positioned to fully
+explain.
 
 \textbf{RQ2.} The strong correlation in feature importance across the
 three engine variants ($\rho \geq 0.81$) suggests that
@@ -1360,7 +1476,10 @@ descriptively rather than within aggregate metrics.
 comparisons between engines use 50 fold-level accuracy estimates per
 engine drawn from repeated resampling of the same underlying dataset;
 these are not fully independent observations, so reported $p$-values
-likely overstate true statistical confidence.
+likely overstate true statistical confidence. The pairwise comparisons
+are grouped into three exploratory families with Bonferroni and Holm
+adjustment (Section~\ref{subsec:stats}); adjustment does not remove this
+non-independence.
 
 \textbf{L4 -- Live validation performed, but under an orchestration
 asymmetry and with unresolved measurement questions.} We extend the
@@ -1439,8 +1558,8 @@ database engine, within this controlled design: reducing PostgreSQL to
 $n=200$ narrows its accuracy advantage over MySQL from $2.72$ to
 $0.79$ points (PostgreSQL's own accuracy drops by $1.93$ points) and
 noticeably affects PERFORMANCE-class recall, but size-matched
-PostgreSQL still lands between, not below, MySQL and MongoDB, so a
-residual difference between engines remains unexplained
+PostgreSQL nominally still lands between, not below, MySQL and MongoDB,
+so a possible residual difference between engines remains unexplained
 (Section~\ref{subsec:rq1b}, FW4 below) and still requires validation
 on independently instrumented engines before either the size effect or
 the residual can be treated as an operational recommendation. At the same time, AVAILABILITY samples are consistently
@@ -1448,9 +1567,13 @@ misclassified as CONSISTENCY, never as ECONOMIC or PERFORMANCE, on all
 three engines; because per-engine AVAILABILITY counts are very small
 ($n=1,3,5$), we treat this as a descriptive, hypothesis-generating
 pattern rather than a settled recall estimate, and the diagnostic
-causal test available on PostgreSQL points toward --- without fully
-confirming --- a genuine gap in the current feature schema rather than
-a simple data-volume artefact.
+oversampling experiment available on PostgreSQL is compatible with ---
+but cannot establish --- a gap in the current feature schema, alongside
+the equally plausible explanation of too few independent minority
+examples. Finally, the live failover comparison is exploratory and
+confounded by an orchestration asymmetry across engines, so its
+recovery-time differences should be read as differences between
+deployments rather than between database engines.
 
 \textbf{FW1.} Explicit transfer-learning evaluation on independently
 instrumented engines (pre-train on PostgreSQL, fine-tune on real
@@ -1461,8 +1584,8 @@ in practice.
 
 \textbf{FW2.} Extend the feature schema with availability-specific
 signals (replica health-check failure rate, active read-replica count)
-to test whether the structural AVAILABILITY/CONSISTENCY overlap
-identified in Section~\ref{subsec:rq3} can be resolved.
+to test whether the hypothesised structural AVAILABILITY/CONSISTENCY
+overlap suggested in Section~\ref{subsec:rq3} can be resolved.
 
 \textbf{FW3.} Resolve the two open measurement questions from the live
 validation in Section~\ref{subsec:rq4}: confirm the mechanism behind
@@ -1479,8 +1602,10 @@ and MySQL under the same protocol.
 
 \textbf{FW4.} Investigate the residual, unattributed ordering between
 size-matched PostgreSQL, MySQL, and MongoDB identified in
-Section~\ref{subsec:rq1b} (size-matched PostgreSQL lands significantly
-above MySQL but significantly below MongoDB at the same $n=200$).
+Section~\ref{subsec:rq1b} (size-matched PostgreSQL lands nominally above
+MySQL but nominally below MongoDB at the same $n=200$; both
+comparisons are exploratory and borderline or non-significant after
+multiple-comparison correction).
 Having confirmed (Limitation L1) that all three datasets share a
 single generator and seed, a generator discrepancy is not a candidate
 explanation; remaining hypotheses are sampling variance not fully
