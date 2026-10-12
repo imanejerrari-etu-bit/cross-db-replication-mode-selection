@@ -1,28 +1,23 @@
 """
-sample_size_control.py — RQ1b (Section 3.4, Section 4.2): disentangles
-engine identity from training-set size by evaluating 20 independent
-class-proportional stratified subsamples of PostgreSQL at n=200,
-under the SAME repeated-CV protocol as the full dataset (10 repeats x
-5 folds = 50 fold-level estimates per subsample), exactly matching
-Section 3.2's Classification Protocol.
+sample_size_control.py -- RQ1b (Sections 3.6 and 4.2): separates engine
+identity from training-set size by evaluating 20 independent,
+approximately class-proportional stratified subsamples of PostgreSQL at
+n=200, under the SAME repeated-CV protocol as the full dataset
+(10 repeats x 5 folds = 50 fold-level estimates per subsample).
 
-This produces 20 subsamples x 50 estimates = 1000 fold-level accuracy
-estimates in total, aggregated for Table 5 / Section 4.2, and the
-PERFORMANCE-recall breakdown in Table 6.
+This yields 20 subsamples x 50 estimates = 1000 fold-level accuracy
+estimates (Table 6) and the PERFORMANCE-class recall of the
+size-matched condition (Table 7). Recall is reported pooled over all
+test folds (total true positives / total PERFORMANCE test cases), the
+definition used in the paper; the mean of per-fold recalls is also
+stored for comparison.
 
-NOTE ON A PREVIOUS DRAFT INCONSISTENCY: an earlier version of the
-paper text claimed this protocol yields "40 fold-level accuracy
-estimates" while also saying it uses "the same repeated stratified
-cross-validation protocol as the full dataset" (10x5=50 per
-subsample) -- these two claims are mutually inconsistent (20 x 50 =
-1000, not 40). This script resolves the ambiguity by literally
-implementing the second claim (same protocol as the full dataset).
-If you locate the original code and it used a different protocol,
-update N_REPEATS_PER_SUBSAMPLE below AND the paper text to match
-whatever that original protocol actually was.
+Subsample class counts: 158-159 CONSISTENCY, 21-22 PERFORMANCE,
+17-18 ECONOMIC, 2 AVAILABILITY (rounding of the class-proportional
+quota, then a random trim to exactly 200 rows).
 
 Usage:
-    python src/sample_size_control.py
+    python sample_size_control.py
 """
 
 import json
@@ -45,9 +40,8 @@ N_SPLITS = 5
 
 
 def stratified_subsample(df: pd.DataFrame, n: int, rng: np.random.Generator) -> pd.DataFrame:
-    """Class-proportional stratified subsample of size n, matching the
-    class distribution documented in Table 2 (158 CONSISTENCY,
-    22 PERFORMANCE, 18 ECONOMIC, 2 AVAILABILITY for n=200)."""
+    """Approximately class-proportional stratified subsample of size n
+    (see module docstring for the resulting class counts at n=200)."""
     frac = n / len(df)
     parts = []
     for cls, group in df.groupby(LABEL_COLUMN):
@@ -70,6 +64,8 @@ def evaluate_subsample(df: pd.DataFrame, rng_seed: int) -> dict:
 
     accuracies = []
     perf_recalls = []
+    perf_tp = 0
+    perf_pos = 0
     for train_idx, test_idx in rskf.split(X, y):
         clf = make_classifier()
         clf.fit(X[train_idx], y[train_idx])
@@ -77,11 +73,15 @@ def evaluate_subsample(df: pd.DataFrame, rng_seed: int) -> dict:
         y_true = y[test_idx]
         accuracies.append(accuracy_score(y_true, y_pred))
         if (y_true == "PERFORMANCE").sum() > 0:
+            perf_tp += int(((y_pred == "PERFORMANCE") & (y_true == "PERFORMANCE")).sum())
+            perf_pos += int((y_true == "PERFORMANCE").sum())
             perf_recalls.append(
                 recall_score(y_true, y_pred, labels=["PERFORMANCE"], average="micro")
             )
 
-    return {"accuracies": accuracies, "performance_recalls": perf_recalls}
+    return {"accuracies": accuracies, "performance_recalls": perf_recalls,
+            "perf_tp": perf_tp, "perf_pos": perf_pos,
+            "n_performance_cases": int((y == "PERFORMANCE").sum())}
 
 
 def run(out_dir: str = "results") -> dict:
@@ -90,12 +90,17 @@ def run(out_dir: str = "results") -> dict:
 
     all_accuracies = []
     all_perf_recalls = []
+    tp = pos = 0
+    perf_cases = []
 
     for i in range(N_SUBSAMPLES):
         sub = stratified_subsample(full_df, MATCHED_N, rng)
         res = evaluate_subsample(sub, rng_seed=RANDOM_STATE + i)
         all_accuracies.extend(res["accuracies"])
         all_perf_recalls.extend(res["performance_recalls"])
+        tp += res["perf_tp"]
+        pos += res["perf_pos"]
+        perf_cases.append(res["n_performance_cases"])
 
     result = {
         "condition": "postgresql_size_matched_n200",
@@ -103,6 +108,8 @@ def run(out_dir: str = "results") -> dict:
         "n_fold_estimates": len(all_accuracies),
         "mean_accuracy": float(np.mean(all_accuracies)),
         "mean_performance_recall": float(np.mean(all_perf_recalls)) if all_perf_recalls else None,
+        "pooled_performance_recall": float(tp / pos) if pos else None,
+        "performance_cases_per_subsample": perf_cases,
     }
 
     os.makedirs(out_dir, exist_ok=True)
@@ -120,7 +127,8 @@ if __name__ == "__main__":
           f"{res['n_fold_estimates']} fold estimates from "
           f"{res['n_subsamples']} subsamples")
     print(f"  mean accuracy           = {res['mean_accuracy']*100:.2f}%")
-    if res["mean_performance_recall"] is not None:
-        print(f"  mean PERFORMANCE recall = {res['mean_performance_recall']*100:.1f}%")
+    if res["pooled_performance_recall"] is not None:
+        print(f"  pooled PERFORMANCE recall = {res['pooled_performance_recall']*100:.1f}% "
+              f"(mean of per-fold recalls: {res['mean_performance_recall']*100:.1f}%)")
     print("\nCompare against results/{postgresql,mysql,mongodb}_fold_accuracies.npy "
-          "(from train_classifiers.py) using stats_tests.mann_whitney_between().")
+          "(from train_classifiers.py) and run multiple_comparisons.py for the family-wise tests.")

@@ -44,6 +44,10 @@ the code has moved.
 │                                        # (Table 5 of the paper; consistent with Table 3)
 ├── stats_tests.py                     # BCa bootstrap, McNemar, Mann-Whitney
 ├── sample_size_control.py             # RQ1b: PostgreSQL size-matched control
+├── multiple_comparisons.py            # families F1-F3: Bonferroni/Holm-adjusted Mann-Whitney
+│                                        # tests (Section 3.5, Table 13)
+├── feature_importance.py              # RQ2: Table 10 / Fig. 4 importances, Spearman rho (Section 4.4)
+├── performance_recall_table.py        # Table 7 / Fig. 3: PERFORMANCE recall, cases, train/fold
 ├── smote_availability.py              # RQ3: SMOTE diagnostic on AVAILABILITY
 ├── analyze_rto_total.py               # RQ4: total RTO (promotion + stabilisation)
 ├── compare_classifiers.py             # RQ1c: RF vs XGBoost/LogReg/SVM, identical CV protocol
@@ -95,7 +99,18 @@ python stats_tests.py
 # RQ1b: sample-size control, 20 stratified n=200 PostgreSQL subsamples (Table 5, 6)
 python sample_size_control.py
 
-# RQ3: SMOTE diagnostic on PostgreSQL AVAILABILITY class (Section 4.6)
+# RQ2: feature-importance stability (Table 10, Spearman correlations)
+python feature_importance.py
+
+# Table 7: PERFORMANCE recall vs. cases and training-fold size
+# (needs per_class_metrics.py and sample_size_control.py outputs)
+python performance_recall_table.py
+
+# Multiple-comparison families F1-F3: unadjusted, Bonferroni and Holm p-values
+# (Section 3.5; needs the outputs of the two scripts above and the RTO CSVs)
+python multiple_comparisons.py
+
+# RQ3: diagnostic SMOTE oversampling experiment on PostgreSQL AVAILABILITY class (Section 4.6)
 python smote_availability.py
 
 # RQ1c: RandomForest vs. XGBoost, logistic regression, SVM (Table 7, 8)
